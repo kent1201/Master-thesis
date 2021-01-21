@@ -1,0 +1,137 @@
+調整一
+learning_rate1 = 0.0003
+learning_rate2 = 0.0003
+learning_rate3 = 0.0003
+learning_rate4 = 0.0003
+learning_rate5 = 0.0015
+
+調整二
+先訓練 Discriminator 5 次，再訓練 generator 1 次
+
+調整三 
+加入 attention modules
+
+Results
+2021_01_19_attention
+class 1:
+Discriminative score: 0.24619999999999997
+Predictive score: 0.6197989004629629
+class 2: 
+Discriminative score: 0.20620000000000005
+Predictive score: 0.5422719997829861
+class 3: 
+Discriminative score: 0.23160000000000003
+Predictive score: 0.5475037186234085
+class 4:
+Discriminative score: 0.1985
+Predictive score: 0.62597900390625
+class 5:
+Discriminative score: 0.2227
+Predictive score: 0.5974830457899305
+class 6:
+Discriminative score: 0.2117
+Predictive score: 0.5995165563512731
+class 7:
+Discriminative score: 0.22119999999999995
+Predictive score: 0.5285655834056713
+class 8:
+Discriminative score: 0.17989999999999995
+Predictive score: 0.6220077853732638
+class 9:
+Discriminative score: 0.22950000000000004
+Predictive score: 0.5318643527560764
+class 10:
+Discriminative score: 0.2148
+Predictive score: 0.7035447862413194
+class 11:
+Discriminative score: 0.20309999999999995
+Predictive score: 0.750629322547885
+class 12:
+Discriminative score: 0.17679999999999996
+Predictive score: 0.5427596702381763
+class 13:
+Discriminative score: 0.11629999999999996
+Predictive score: 0.5624180094401041
+class 14:
+Discriminative score: 0.2573
+Predictive score: 0.6073493109809027
+class 15:
+Discriminative score: 0.1572
+Predictive score: 0.673277429651331
+class 16:
+Discriminative score: 0.2037
+Predictive score: 0.540338293004919
+class 17:
+Discriminative score: 0.16959999999999997
+Predictive score: 0.6167162407769097
+class 18:
+Discriminative score: 0.18069999999999997
+Predictive score: 0.5023600486472801
+class 19:
+Discriminative score: 0.24209999999999998
+Predictive score: 0.5643003110532407
+class 20:
+Discriminative score: 0.24150000000000005
+Predictive score: 0.6296952537254051
+
+2021_01_20_gru:
+class 1:
+Discriminative score: 0.2609
+Predictive score: 0.627748706958912
+class 2:
+Discriminative score: 0.22909999999999997
+Predictive score: 0.5432649513527199
+class 3: 
+Discriminative score: 0.2098
+Predictive score: 0.5617043502242477
+class 4:
+Discriminative score: 0.2583
+Predictive score: 0.6310853407118056
+class 5:
+Discriminative score: 0.261
+Predictive score: 0.6036032443576389
+class 6:
+Discriminative score: 0.32010000000000005
+Predictive score: 0.6177394386574074
+class 7:
+Discriminative score: 0.2752
+Predictive score: 0.5510845721209491
+class 8:
+Discriminative score: 0.18200000000000005
+Predictive score: 0.6331915961371528
+class 9:
+Discriminative score: 0.3134
+Predictive score: 0.5179682526765046
+class 10:
+Discriminative score: 0.33020000000000005
+Predictive score: 0.6808890787760417
+class 11:
+Discriminative score: 0.34209999999999996
+Predictive score: 0.746066867049916
+class 12:
+Discriminative score: 0.4304
+Predictive score: 0.5377462327523602
+class 13:
+Discriminative score: 0.30410000000000004
+Predictive score: 0.5493377233434606
+class 14:
+Discriminative score: 0.32499999999999996
+Predictive score: 0.6131989655671296
+class 15:
+Discriminative score: 0.3738
+Predictive score: 0.6854480206524884
+class 16:
+Discriminative score: 0.2955
+Predictive score: 0.5514049840856482
+class 17:
+Discriminative score: 0.34909999999999997
+Predictive score: 0.6061342140480324
+class 18:
+Discriminative score: 0.3829
+Predictive score: 0.5024371224862558
+class 19:
+Discriminative score: 0.25670000000000004
+Predictive score: 0.5774103687427662
+class 20:
+Discriminative score: 0.3438
+Predictive score: 0.6599888328269676
