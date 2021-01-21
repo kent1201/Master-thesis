@@ -138,7 +138,7 @@ def Generate_data():
     E_hat = generator(Z, None)
     H_hat = supervisor(E_hat, None)
     # For attn
-    # X_hat = recovery(H_hat, X, None)
+    # X_hat = recovery(H_hat, X)
     # For GRU
     X_hat = recovery(H_hat, None)
 

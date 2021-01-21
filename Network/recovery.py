@@ -91,7 +91,7 @@ class Recovery(nn.Module):
       # print("X3: {}".format(X.shape))
       # Input X shape: (batch_size, seq_len, input_dim)
       enc_output = torch.transpose(X, 0, 1)
-      dec_output = torch.transpose(Y, 0, 1)
+      dec_output = torch.transpose(H, 0, 1)
       # Input X shape: (seq_len, batch_size, input_dim)
       for dec_layer in self.r_cell:
         dec_output, dec_slf_attn, dec_enc_attn = dec_layer(dec_output, enc_output)

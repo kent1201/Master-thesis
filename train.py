@@ -84,7 +84,7 @@ def train_stage1(embedder, recovery):
 
       H = embedder(X, None)
       # For attention
-      # outputs = recovery(H, X, None)
+      # outputs = recovery(H, X)
       # For GRU
       outputs = recovery(H, None)
 
@@ -256,12 +256,12 @@ def train_stage3(embedder, recovery, generator, supervisor, discriminator):
         Y_fake_e = discriminator(E_hat, None)
         H = embedder(X, None)
         # For attention
-        # X_tilde = recovery(H, X, None)
+        # X_tilde = recovery(H, X)
         # For GRU
         X_tilde = recovery(H, None)
         H_hat_supervise = supervisor(H, None)
         # For attention
-        # X_hat = recovery(H_hat, X, None)
+        # X_hat = recovery(H_hat, X)
         # For GRU
         X_hat = recovery(H_hat, None)
         lossG, loss_U, loss_S, loss_V = Gloss_criterion(Y_fake, Y_fake_e, H[:,1:,:], H_hat_supervise[:,:-1,:], X, X_hat)
@@ -279,7 +279,7 @@ def train_stage3(embedder, recovery, generator, supervisor, discriminator):
 
         H = embedder(X, None)
         # For attention
-        # X_tilde = recovery(H, X, None)
+        # X_tilde = recovery(H, X)
         # For GRU
         X_tilde = recovery(H, None)
         H_hat_supervise = supervisor(H, None)
