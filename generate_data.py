@@ -137,8 +137,10 @@ def Generate_data():
 
     E_hat = generator(Z, None)
     H_hat = supervisor(E_hat, None)
-    # For attn
-    # X_hat = recovery(H_hat, X)
+    # For attention
+    # decoder_inputs = torch.zeros_like(Z)
+    # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+    # X_hat = recovery(H_hat, decoder_inputs)
     # For GRU
     X_hat = recovery(H_hat, None)
 

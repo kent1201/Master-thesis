@@ -1,0 +1,57 @@
+加入 attention modules
+調整一
+learning_rate1 = 0.0003
+learning_rate2 = 0.0003
+learning_rate3 = 0.0003
+learning_rate4 = 0.0003
+learning_rate5 = 0.0015
+
+調整二
+先訓練 generator 2 次，再訓練 Discriminator 5 次
+
+調整三 (class 11~20) (失敗: 炸掉)
+decoder_input 調整初始輸入為 X dimension 的 zero matrix
+原先(class 1~10) 為直接輸入 X
+
+調整四 (class 11) (失敗: 炸掉)
+training : 直接輸入 X, Z
+generating: 直接輸入 Z
+
+Results
+2021_01_12_attention
+class 1:
+Discriminative score: 0.008699999999999986
+Predictive score: 0.6166967095269097
+class 2:
+Discriminative score: 0.0023999999999999577
+Predictive score: 0.5399875217013889
+class 3:
+Discriminative score: 0.02410000000000001
+Predictive score: 0.5426252350983797
+class 4:
+Discriminative score: 0.0048000000000000265
+Predictive score: 0.623953857421875
+
+class 5:
+Discriminative score: 0.05169999999999997
+Predictive score: 0.5988108091001157
+
+class 6:
+Discriminative score: 0.013299999999999979
+Predictive score: 0.6020868145978009
+
+class 7:
+Discriminative score: 0.07340000000000002
+Predictive score: 0.532159774215133
+
+class 8:
+Discriminative score: 0.06720000000000004
+Predictive score: 0.6230308250144676
+
+class 9:
+Discriminative score: 0.05369999999999997
+Predictive score: 0.5426335087528935
+
+class 10:
+Discriminative score: 0.037799999999999945
+Predictive score: 0.6898347077546296

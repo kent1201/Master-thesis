@@ -54,13 +54,13 @@ class Supervisor(nn.Module):
         dropout=0.2
       )
     
-    elif self.module == 'attn':
+    elif self.module == 'self-attn':
       # d_k, d_v =  d_model / n_head
       self.r_cell = nn.ModuleList([EncoderLayer(d_model=27, d_inner=27, n_head=9, d_k=3, d_v=3, dropout=0.1) for _ in range(6)])
 
     if self.module == 'bi-lstm':
       self.fc = nn.Linear(self.hidden_dim * 2, self.output_dim)
-    elif self.module == 'attn':
+    elif self.module == 'self-attn':
       self.fc = nn.Linear(self.input_size, self.output_dim)
     else:
       self.fc = nn.Linear(self.hidden_dim, self.output_dim)
@@ -77,7 +77,7 @@ class Supervisor(nn.Module):
       # H shape: (batch_size, input_dim, seq_len)
       # H_transpose: (batch_size, seq_len, input_dim)
       output = torch.transpose(output, 1, 2)
-    elif self.module == 'attn':
+    elif self.module == 'self-attn':
       enc_output = torch.transpose(X, 0, 1)
       # Input X shape: (seq_len, batch_size, input_dim)
       for enc_layer in self.r_cell:

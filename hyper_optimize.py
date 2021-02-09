@@ -405,10 +405,10 @@ if __name__ == '__main__':
   # Parameters
 
   Config_opt = {
-    "num_epochs": tune.choice([20, 40, 100, 150, 200, 250, 500, 1000]),
-    "batch_size": tune.choice([8, 16, 32, 64, 128]),
-    "hidden_size": tune.choice([50, 100 , 150, 200, 300, 400, 500]),
-    "num_layers": tune.choice([5, 10, 15, 20, 30]),
+    "num_epochs": tune.choice([20, 40, 100, 150, 200, 250, 500]),
+    "batch_size": tune.choice([8, 16, 32, 64]),
+    "hidden_size": tune.choice([50, 100 , 150, 200, 300]),
+    "num_layers": tune.choice([5, 10, 15, 20]),
     "learning rate1": tune.loguniform(1e-4, 1e-1),
     "learning rate2": tune.loguniform(1e-4, 1e-1),
     "learning rate3": tune.loguniform(1e-4, 1e-1),
