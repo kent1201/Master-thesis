@@ -29,9 +29,7 @@ def random_generator(batch_size, seq_len, dim):
 
   return Z
 
-def train_test_dataloader(dataset_dir="", mode='test'):
-
-  data_set = SensorSignalDataset(root_dir=dataset_dir, transform=None)
+def train_test_dataloader(data_set, mode='test'):
 
   train_dataset_size = int(config.getfloat(mode, 'trainset_percentage') * len(data_set))
   test_dataset_size = len(data_set) - train_dataset_size

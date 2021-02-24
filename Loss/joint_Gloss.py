@@ -39,8 +39,8 @@ class JointGloss(nn.Module):
       loss_U = self.G_loss_U(Y_fake, torch.ones_like(Y_fake))
       loss_U_e = self.G_loss_U(Y_fake_e, torch.ones_like(Y_fake_e))
     elif self.mode == "wgan" or self.mode == "hinge":
-      loss_U = Y_fake.mean()
-      loss_U_e = Y_fake_e.mean()
+      loss_U = -(Y_fake.mean())
+      loss_U_e = -(Y_fake_e.mean())
 
     loss_U = torch.add(loss_U.add(torch.mul(self.gamma, loss_U_e)), 1e-5)
     loss_S = torch.mul(torch.sqrt(torch.add(self.G_loss_S(H_hat_supervise, H).mean(), 1e-7)), 100)

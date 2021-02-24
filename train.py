@@ -12,13 +12,15 @@ from Network.recovery import Recovery
 from Network.supervisor import Supervisor
 from Network.generator import Generator
 from Network.discriminator import Discriminator
-from dataset import SensorSignalDataset
+# from dataset import SensorSignalDataset
+from Timedataset import TimeSeriesDataset
 from Loss.embedder_loss import EmbedderLoss
 from Loss.supervised_loss import SupervisedLoss
 from Loss.joint_Gloss import JointGloss
 from Loss.joint_Eloss import JointEloss
 from Loss.joint_Dloss import JointDloss
 from utils import random_generator, _gradient_penalty
+
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
@@ -48,10 +50,6 @@ generator_name = config.get('default', 'generator_name')
 supervisor_name = config.get('default', 'supervisor_name')
 discriminator_name = config.get('default', 'discriminator_name')
 module_name = config.get('default', 'module_name')
-
-
-
-
 
 # 1. Embedding network training
 def train_stage1(data_set, data_loader, embedder, recovery):
@@ -86,22 +84,19 @@ def train_stage1(data_set, data_loader, embedder, recovery):
 
       H = embedder(X, None)
       # For attention
-      # decoder_inputs = torch.ones_like(X)
+      # decoder_inputs = torch.zeros_like(X)
       # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
       # outputs = recovery(H, decoder_inputs)
       # For GRU
       outputs = recovery(H, None)
 
-      loss_only, loss = criterion(outputs, X)
-      loss.backward()
+      E_loss_T0, E_loss0 = criterion(outputs, X)
+      E_loss0.backward()
       optimizer.step()
-
-      training_loss += loss_only.item() * X.size(0)
-
-    training_loss = training_loss / len(data_set)
+      training_loss = np.sqrt(E_loss_T0.item())
 
     if epoch % (np.round(num_epochs / 5))  == 0:
-      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(np.sqrt(training_loss),4)))
+      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(training_loss,4)))
 
   print('Finish Embedding Network Training')
 
@@ -120,16 +115,16 @@ def train_stage2(data_set, data_loader, embedder, supervisor, generator):
   # models_param = [generator.parameters(), supervisor.parameters()]
   # optimizer = torch.optim.Adam(params=itertools.chain(*models_param), lr=learning_rate)
 
-  # optimizer = torch.optim.Adam(
-  #   [{'params': generator.parameters()},
-  #    {'params': supervisor.parameters()}],
-  #   lr=learning_rate2
-  # )
-
-  optimizer = torch.optim.RMSprop(
+  optimizer = torch.optim.Adam(
     [{'params': generator.parameters()},
      {'params': supervisor.parameters()}],
-     lr=learning_rate2, alpha=0.99, eps=1e-08, weight_decay=0, momentum=0, centered=False)
+    lr=learning_rate2
+  )
+
+  # optimizer = torch.optim.RMSprop(
+  #   [{'params': generator.parameters()},
+  #    {'params': supervisor.parameters()}],
+  #    lr=learning_rate2, alpha=0.99, eps=1e-08, weight_decay=0, momentum=0, centered=False)
 
   print('Start Training with Supervised Loss Only')
 
@@ -152,12 +147,10 @@ def train_stage2(data_set, data_loader, embedder, supervisor, generator):
       loss.backward()
       optimizer.step()
 
-      training_loss += loss.item() * X.size(0)
-
-    training_loss = training_loss / len(data_set)
+      training_loss = np.sqrt(loss.item())
 
     if epoch % (np.round(num_epochs / 5)) == 0:
-      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', s_loss: ' + str(np.round(np.sqrt(training_loss),4)))
+      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', s_loss: ' + str(np.round(training_loss, 4)))
 
 
   print('Finish Training with Supervised Loss Only')
@@ -184,16 +177,16 @@ def train_stage3(data_set, data_loader, embedder, recovery, generator, superviso
   # models_paramG = [generator.parameters(), supervisor.parameters()]
   # optimizerG = torch.optim.Adam(params=itertools.chain(*models_paramG), lr=learning_rate)
 
-  # optimizerG = torch.optim.Adam(
-  #   [{'params': generator.parameters()},
-  #    {'params': supervisor.parameters()}],
-  #   lr=learning_rate3
-  # )
-
-  optimizerG = torch.optim.RMSprop(
+  optimizerG = torch.optim.Adam(
     [{'params': generator.parameters()},
      {'params': supervisor.parameters()}],
-     lr=learning_rate3, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
+    lr=learning_rate3
+  )
+
+  # optimizerG = torch.optim.RMSprop(
+  #   [{'params': generator.parameters()},
+  #    {'params': supervisor.parameters()}],
+  #    lr=learning_rate3, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
 
   # models_paramE = [embedder.parameters(), recovery.parameters()]
   # optimizerE = torch.optim.Adam(params=itertools.chain(*models_paramE), lr=learning_rate)
@@ -204,9 +197,9 @@ def train_stage3(data_set, data_loader, embedder, recovery, generator, superviso
     lr=learning_rate4
   )
 
-  # optimizerD = torch.optim.Adam(params=discriminator.parameters(), lr=learning_rate5)
+  optimizerD = torch.optim.Adam(params=discriminator.parameters(), lr=learning_rate5)
 
-  optimizerD = torch.optim.RMSprop(discriminator.parameters(), lr=learning_rate5, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
+  # optimizerD = torch.optim.RMSprop(discriminator.parameters(), lr=learning_rate5, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
 
 
   for epoch in range(num_epochs):
@@ -218,70 +211,45 @@ def train_stage3(data_set, data_loader, embedder, recovery, generator, superviso
     training_loss_E0 = 0.0
     training_loss_D = 0.0
 
-    # Discriminator training
-    with torch.backends.cudnn.flags(enabled=False):
+    
+    for inputs in data_loader:
+      ## Generator training (twice more than discriminator training)
       for _ in range(2):
-        for _, inputs in enumerate(data_loader):
-
-          X = inputs[0].to(CUDA_DEVICES)
-          optimizerD.zero_grad()
-
-          z_batch_size, z_seq_len, z_dim = X.shape
-          Z = random_generator(z_batch_size, z_seq_len, z_dim)
-          Z = Z.to(CUDA_DEVICES)
-
-          E_hat = generator(Z, None)
-          Y_fake_e = discriminator(E_hat, None)
-          H_hat = supervisor(E_hat, None)
-          Y_fake = discriminator(H_hat, None)
-
-          H = embedder(X, None)
-          Y_real = discriminator(H, None)
-
-          lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
-          lossD_gp = _gradient_penalty(CUDA_DEVICES, discriminator, H, H_hat)
-          lossD = lossD.add(lossD_gp)
-
-          # Train discriminator (only when the discriminator does not work well)
-          if lossD > 0.15:
-            lossD.backward()
-            optimizerD.step()
-            training_loss_D += lossD.item() * X.size(0)
-
-    # Generator training (twice more than discriminator training)
-    for _ in range(2):
-      for inputs in data_loader:
-
         X = inputs[0].to(CUDA_DEVICES)
 
         optimizerG.zero_grad()
-        optimizerE.zero_grad()
 
         # Train generator
+        # Generate random data
         z_batch_size, z_seq_len, z_dim = X.shape
         Z = random_generator(z_batch_size, z_seq_len, z_dim)
         Z = Z.to(CUDA_DEVICES)
 
-        E_hat = generator(Z, None)
-        H_hat = supervisor(E_hat, None)
-        Y_fake = discriminator(H_hat, None)
-        Y_fake_e = discriminator(E_hat, None)
+        # Supervised Forward Pass
         H = embedder(X, None)
         # For attention
-        # decoder_inputs = torch.ones_like(X)
+        # decoder_inputs = torch.zeros_like(X)
         # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
         # X_tilde = recovery(H, decoder_inputs)
         # For GRU
+        H_hat_supervise = supervisor(H, None)
         X_tilde = recovery(H, None)
 
-        H_hat_supervise = supervisor(H, None)
-
+        # Generator Forward Pass
+        E_hat = generator(Z, None)
+        H_hat = supervisor(E_hat, None)
+        
+        # Synthetic data generated
         # For attention
-        # decoder_inputs = torch.ones_like(Z)
+        # decoder_inputs = torch.zeros_like(X)
         # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
         # X_hat = recovery(H_hat, decoder_inputs)
         # For GRU
         X_hat = recovery(H_hat, None)
+
+        # Adversarial loss
+        Y_fake = discriminator(H_hat, None)
+        Y_fake_e = discriminator(E_hat, None)
 
         lossG, loss_U, loss_S, loss_V = Gloss_criterion(Y_fake, Y_fake_e, H[:,1:,:], H_hat_supervise[:,:-1,:], X, X_hat)
 
@@ -289,20 +257,22 @@ def train_stage3(data_set, data_loader, embedder, recovery, generator, superviso
         optimizerG.step()
 
 
-        training_loss_G += lossG.item() * X.size(0)
-        training_loss_U += loss_U.item() * X.size(0)
-        training_loss_S += loss_S.item() * X.size(0)
-        training_loss_V += loss_V.item() * X.size(0)
+        training_loss_G = np.sqrt(lossG.item())
+        training_loss_U = np.sqrt(loss_U.item())
+        training_loss_S = np.sqrt(loss_S.item())
+        training_loss_V = np.sqrt(loss_V.item())
 
-        # Train embedder
+        # Train autoencoder
+        optimizerE.zero_grad()
 
         H = embedder(X, None)
         # For attention
-        # decoder_inputs = torch.ones_like(Z)
+        # decoder_inputs = torch.zeros_like(X)
         # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
         # X_tilde = recovery(H, decoder_inputs)
         # For GRU
         X_tilde = recovery(H, None)
+
         H_hat_supervise = supervisor(H, None)
 
         lossE, lossE_0 = Eloss_criterion(X_tilde, X, H[:,1:,:], H_hat_supervise[:,:-1,:])
@@ -310,75 +280,63 @@ def train_stage3(data_set, data_loader, embedder, recovery, generator, superviso
         lossE.backward()
         optimizerE.step()
 
-        training_loss_E0 += lossE_0.item() * X.size(0)
+        training_loss_E0 = np.sqrt(lossE_0.item())
 
 
-    # Discriminator training
-    # for i, inputs in enumerate(data_loader):
+    ## Discriminator training
+    # with torch.backends.cudnn.flags(enabled=False):
+      optimizerD.zero_grad()
 
-    #   X = inputs[0].to(CUDA_DEVICES)
-    #   optimizerD.zero_grad()
+      # Train discriminator
 
-    #   z_batch_size, z_seq_len, z_dim = X.shape
-    #   Z = random_generator(z_batch_size, z_seq_len, z_dim)
-    #   Z = Z.to(CUDA_DEVICES)
+      # Generate random data
+      z_batch_size, z_seq_len, z_dim = X.shape
+      Z = random_generator(z_batch_size, z_seq_len, z_dim)
+      Z = Z.to(CUDA_DEVICES)
 
-    #   E_hat = generator(Z, None)
-    #   Y_fake_e = discriminator(E_hat, None)
-    #   H_hat = supervisor(E_hat, None)
-    #   Y_fake = discriminator(H_hat, None)
+      # latent code forward
+      H = embedder(X, None).detach()
+      H_hat = supervisor(E_hat, None).detach()
+      E_hat = generator(Z, None).detach()
+      
+      # Forward Pass
+      Y_real = discriminator(H, None)         # Encoded original data
+      Y_fake = discriminator(H_hat, None)     # Output of supervisor
+      Y_fake_e = discriminator(E_hat, None)   # Output of generator
+      
+      # Adversarial loss
+      lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
+      # lossD_gp = _gradient_penalty(CUDA_DEVICES, discriminator, H, H_hat)
+      # lossD = lossD.add(lossD_gp)
 
-    #   H = embedder(X, None)
-    #   Y_real = discriminator(H, None)
-
-    #   lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
-
-    #   # Train discriminator (only when the discriminator does not work well)
-    #   if lossD > 0.15:
-    #     lossD.backward()
-    #     optimizerD.step()
-    #     training_loss_D += lossD.item() * X.size(0)
-
-    training_loss_G = 0.5 * (training_loss_G / len(data_set))
-    training_loss_U = 0.5 * (training_loss_U / len(data_set))
-    training_loss_S = 0.5 * (training_loss_S / len(data_set))
-    training_loss_V = 0.5 * (training_loss_V / len(data_set))
-    training_loss_E0 = 0.5 * (training_loss_E0 / len(data_set))
-    training_loss_D = training_loss_D / len(data_set)
-
+      # Train discriminator (only when the discriminator does not work well)
+      if lossD > 0.15:
+        lossD.backward()
+        optimizerD.step()
+      
+      training_loss_D = lossD.item()
 
     # Print multiple checkpoints
     if epoch % (np.round(num_epochs / 5)) == 0:
       print('step: '+ str(epoch) + '/' + str(num_epochs) +
             ', d_loss: ' + str(np.round(training_loss_D, 4)) +
             ', g_loss_u: ' + str(np.round(training_loss_U, 4)) +
-            ', g_loss_s: ' + str(np.round(np.sqrt(training_loss_S), 4)) +
+            ', g_loss_s: ' + str(np.round(training_loss_S, 4)) +
             ', g_loss_v: ' + str(np.round(training_loss_V, 4)) +
-            ', e_loss_t0: ' + str(np.round(np.sqrt(training_loss_E0), 4)))
-
-      epoch_embedder_name = str(epoch) + "_" + embedder_name
-      epoch_recovery_name = str(epoch) + "_" + recovery_name
-      epoch_generator_name = str(epoch) + "_" + generator_name
-      epoch_supervisor_name = str(epoch) + "_" + supervisor_name
-      epoch_discriminator_name = str(epoch) + "_" + discriminator_name
-
-      # save model
-      today = date.today()
-      save_time = today.strftime("%d_%m_%Y")
-      output_dir = config.get('train', 'model_path') + '/' + save_time + '/' + config.get('train', 'classification_dir') + '/'
-      if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-      torch.save(embedder, f'{output_dir+epoch_embedder_name}')
-      torch.save(recovery, f'{output_dir+epoch_recovery_name}')
-      torch.save(generator, f'{output_dir+epoch_generator_name}')
-      torch.save(supervisor, f'{output_dir+epoch_supervisor_name}')
-      torch.save(discriminator, f'{output_dir+epoch_discriminator_name}')
+            ', e_loss_t0: ' + str(np.round(training_loss_E0, 4)))
 
   print('Finish Joint Training')
 
 
 if __name__ == '__main__':
+
+
+  # save model path
+  today = date.today()
+  save_time = today.strftime("%d_%m_%Y")
+  output_dir = config.get('train', 'model_path') + '/' + save_time + '/' + config.get('train', 'classification_dir') + '/'
+  if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
   # Parameters
   print("CUDA DEVICE: {}".format(CUDA_DEVICES))
@@ -451,19 +409,13 @@ if __name__ == '__main__':
   discriminator = discriminator.to(CUDA_DEVICES)
 
   # Dataset
-  Data_set = SensorSignalDataset(root_dir=dataset_dir, transform=None)
-  Data_loader = DataLoader(dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=1)
+  Data_set = TimeSeriesDataset(root_dir=dataset_dir, transform=None, seq_len=seq_len)
+  Data_loader = DataLoader(dataset=Data_set, batch_size=batch_size, shuffle=True, num_workers=1)
 
   train_stage1(Data_set, Data_loader, embedder, recovery)
   train_stage2(Data_set, Data_loader, embedder, supervisor, generator)
   train_stage3(Data_set, Data_loader, embedder, recovery, generator, supervisor, discriminator)
 
-  # save model
-  today = date.today()
-  save_time = today.strftime("%d_%m_%Y")
-  output_dir = config.get('train', 'model_path') + '/' + save_time + '/' + config.get('train', 'classification_dir') + '/'
-  if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
   torch.save(embedder, f'{output_dir+embedder_name}')
   torch.save(recovery, f'{output_dir+recovery_name}')
   torch.save(generator, f'{output_dir+generator_name}')

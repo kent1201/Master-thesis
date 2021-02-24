@@ -254,9 +254,12 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
 if __name__ == '__main__':
 
-    real_train_data_loader, real_test_data_loader = train_test_dataloader(dataset_dir=real_dataset_dir, mode='test')
+    real_data_set = SensorSignalDataset(root_dir=real_dataset_dir, transform=None)
+    synthetic_data_set = SensorSignalDataset(root_dir=synthetic_dataset_dir, transform=None)
 
-    synthetic_train_data_loader, synthetic_test_data_loader = train_test_dataloader(dataset_dir=synthetic_dataset_dir, mode='test')
+    real_train_data_loader, real_test_data_loader = train_test_dataloader(data_set=real_data_set, mode='test')
+
+    synthetic_train_data_loader, synthetic_test_data_loader = train_test_dataloader(data_set=synthetic_data_set, mode='test')
 
     discriminative_score = Discriminative(real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader)
 

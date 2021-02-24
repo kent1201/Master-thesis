@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from dataset_preprocess import preprocess
+from dataset_preprocess import path_preprocess, MinMaxScaler1, MinMaxScaler2
 import torch
 from torch.utils.data import Dataset
 import configparser
@@ -7,61 +7,6 @@ import numpy as np
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
-
-def StandardScaler(data):
-    """Min Max normalizer.
-    do for each column
-    Args:
-      - data: original data
-
-    Returns:
-      - norm_data: normalized data
-    """
-    m = data.mean(0, keepdim=True)
-    s = data.std(0, unbiased=False, keepdim=True)
-    data = data - m
-    # epsilon = 1e-7 to avoid loss=nan
-    norm_data = data / (s + 1e-7)
-    return norm_data
-
-def MinMaxScaler1(data):
-  """Min Max normalizer.
-  do for each column
-  Args:
-    - data: original data
-
-  Returns:
-    - norm_data: normalized data
-  """
-  min_val = np.min(data, 0)
-  max_val = np.max(data, 0)
-  numerator = data - min_val
-  denominator = max_val - min_val
-  norm_data = numerator / (denominator + 1e-7)
-  # rescale to (-1, 1)
-  norm_data = 2 * norm_data - 1
-  return norm_data, min_val, max_val
-
-def MinMaxScaler2(data):
-    """Min-Max Normalizer.
-
-    Args:
-      - data: raw data
-
-    Returns:
-      - norm_data: normalized data
-      - min_val: minimum values (for renormalization)
-      - max_val: maximum values (for renormalization)
-    """
-    min_val = np.min(np.min(data, axis = 0), axis = 0)
-    data = data - min_val
-
-    max_val = np.max(np.max(data, axis = 0), axis = 0)
-    norm_data = data / (max_val + 1e-7)
-    #[test] min-max to (-1, 1)
-    norm_data = 2 * norm_data - 1
-
-    return norm_data, min_val, max_val
 
 
 class SensorSignalDataset(Dataset):
@@ -72,7 +17,7 @@ class SensorSignalDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
 
-        self.path = preprocess(root_dir)
+        self.path = path_preprocess(root_dir)
 
     def __len__(self):
         return len(self.path)

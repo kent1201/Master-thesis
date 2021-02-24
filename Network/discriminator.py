@@ -70,6 +70,27 @@ class Discriminator(nn.Module):
     self.conv1 = nn.Conv2d(1, 1, kernel_size=(3, 1), stride=1)
     self.conv2 = nn.Conv2d(1, 1, kernel_size=(3, 1), stride=1)
 
+    # Init weights
+        # Default weights of TensorFlow is Xavier Uniform for W and 1 or 0 for b
+        # Reference: 
+        # - https://www.tensorflow.org/api_docs/python/tf/compat/v1/get_variable
+        # - https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/legacy_rnn/rnn_cell_impl.py#L484-L614
+    with torch.no_grad():
+        for name, param in self.r_cell.named_parameters():
+            if 'weight_ih' in name:
+                torch.nn.init.xavier_uniform_(param.data)
+            elif 'weight_hh' in name:
+                torch.nn.init.xavier_uniform_(param.data)
+            elif 'bias_ih' in name:
+                param.data.fill_(1)
+            elif 'bias_hh' in name:
+                param.data.fill_(0)
+        for name, param in self.fc.named_parameters():
+            if 'weight' in name:
+                torch.nn.init.xavier_uniform_(param)
+            elif 'bias' in name:
+                param.data.fill_(0)
+
   def forward(self, X, H):
     if self.module == 'tcn':
       # Input X shape: (batch_size, seq_len, input_dim)

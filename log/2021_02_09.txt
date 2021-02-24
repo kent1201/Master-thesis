@@ -1,0 +1,14 @@
+1. 減少 discriminator epoch 次數: 5 => 1
+2. 加大 batch size 次數: 64 => 100 (失敗)
+
+實驗組
+        1_attn_MSE_Hinge_500_64_27_27_5
+        action1
+        Discriminative score: 0.40290000000000004
+        Predictive score: 0.6505266429759838
+
+實驗組
+        1_attn_SoftDTW_Hinge_500_64_27_27_5
+        action1
+        Discriminative score: 0.42879999999999996
+        Predictive score: 0.6646693250868055

@@ -21,7 +21,31 @@
 延長 epoch=500, batch_size=64, dis_func=Soft_DTW
 
     實驗組
-        1_gru_SoftDTW_WGANGP_500_32_27_100_5
+        1_gru_SoftDTW_WGANGP_500_64_27_100_5
         action1
         Discriminative score: 0.13629999999999998
         Predictive score: 0.6272758427372686
+
+延長 epoch=500, batch_size=64, dis_func=MSE, loss=hinge/no gradient penalty
+
+    實驗組
+        1_gru_Hinge_500_64_27_100_5
+        action1
+        Discriminative score: 0.13490000000000002
+        Predictive score: 0.6157341399016204
+
+延長 epoch=500, batch_size=64, dis_func=Soft_DTW, loss=hinge/no gradient penalty
+
+    實驗組
+        1_gru_SoftDTW_Hinge_500_64_27_100_5
+        action1
+        Discriminative score: 0.24039999999999995
+        Predictive score: 0.6311536096643519
+
+延長 epoch=500, batch_size=64, dis_func=Soft_DTW, loss=hinge/add gradient penalty
+
+    實驗組
+        1_gru_SoftDTW_HingeGP_500_64_27_100_5
+        action1
+        Discriminative score: 0.21830000000000005
+        Predictive score: 0.6199968578197338

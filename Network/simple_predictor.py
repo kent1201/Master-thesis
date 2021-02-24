@@ -20,6 +20,27 @@ class Simple_Predictor(nn.Module):
     self.activate2 = nn.Sigmoid()
     self.fc = nn.Linear(self.hidden_dim, self.output_dim)
 
+    # Init weights
+        # Default weights of TensorFlow is Xavier Uniform for W and 1 or 0 for b
+        # Reference: 
+        # - https://www.tensorflow.org/api_docs/python/tf/compat/v1/get_variable
+        # - https://github.com/tensorflow/tensorflow/blob/v2.3.1/tensorflow/python/keras/layers/legacy_rnn/rnn_cell_impl.py#L484-L614
+    with torch.no_grad():
+        for name, param in self.r_cell.named_parameters():
+            if 'weight_ih' in name:
+                torch.nn.init.xavier_uniform_(param.data)
+            elif 'weight_hh' in name:
+                torch.nn.init.xavier_uniform_(param.data)
+            elif 'bias_ih' in name:
+                param.data.fill_(1)
+            elif 'bias_hh' in name:
+                param.data.fill_(0)
+        for name, param in self.fc.named_parameters():
+            if 'weight' in name:
+                torch.nn.init.xavier_uniform_(param)
+            elif 'bias' in name:
+                param.data.fill_(0)
+
   def forward(self, X, H):
     # Input X shape: (seq_len, batch_size, input_dim)
     outputs1, _ = self.r_cell(X, H)

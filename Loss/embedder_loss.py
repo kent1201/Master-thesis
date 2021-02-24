@@ -13,15 +13,14 @@ class EmbedderLoss(nn.Module):
 
   def forward(self, outputs, targets):
 
-    loss_only = 0
     if self.dis_func == "MSE":
-      loss_only = self.MSELoss(outputs, targets)
+      E_loss_T0 = self.MSELoss(outputs, targets)
     elif self.dis_func == "Soft_DTW":
-      loss_only = self.sdtw_cuda(outputs, targets).mean()
+      E_loss_T0 = self.sdtw_cuda(outputs, targets).mean()
 
-    loss = torch.mul(10.0, torch.sqrt(torch.add(loss_only, 1e-10)))
+    E_loss0 = torch.mul(10.0, torch.sqrt(torch.add(E_loss_T0, 1e-10)))
 
-    return loss_only, loss
+    return E_loss_T0, E_loss0
 
 
 if __name__ == '__main__':
