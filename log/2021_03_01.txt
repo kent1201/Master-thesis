@@ -1,0 +1,29 @@
+energy_gru_MSE_wgan_500_64_24_28_120_5
+
+
+
+energy_gru_Soft_DTW_wgan_500_64_24_28_120_5
+
+
+
+energy_gru_MSE_hinge_500_64_24_28_120_5
+Discriminative score: 0.4759
+Predictive score: 0.38114594041969424
+
+
+
+energy_gru_Soft_DTW_hinge_500_64_24_28_120_5
+Discriminative score: 0.4686
+Predictive score: 0.3808048149650305
+
+
+
+2021/03/04
+learning_rate1 = 0.0001 -> 0.001
+learning_rate2 = 0.0001 -> 0.001
+learning_rate3 = 0.0001 -> 0.001
+learning_rate4 = 0.0001 -> 0.001
+learning_rate5 = 0.0001 -> 0.005
+
+stock
+stock_gru_MSE_500_64_24_6_24_5

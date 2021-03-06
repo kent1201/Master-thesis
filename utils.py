@@ -35,8 +35,8 @@ def train_test_dataloader(data_set, mode='test'):
   test_dataset_size = len(data_set) - train_dataset_size
   train_dataset, test_dataset = torch.utils.data.random_split(data_set, [train_dataset_size, test_dataset_size])
 
-  train_data_loader = DataLoader(dataset=train_dataset, batch_size=config.getint(mode, 'batch_size'), shuffle=True, num_workers=1)
-  test_data_loader = DataLoader(dataset=test_dataset, batch_size=config.getint(mode, 'batch_size'), shuffle=True, num_workers=1)
+  train_data_loader = DataLoader(dataset=train_dataset, batch_size=config.getint(mode, 'batch_size'), shuffle=False, num_workers=1)
+  test_data_loader = DataLoader(dataset=test_dataset, batch_size=config.getint(mode, 'batch_size'), shuffle=False, num_workers=1)
 
   return train_data_loader, test_data_loader
 

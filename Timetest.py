@@ -8,6 +8,7 @@ from datetime import date
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import numpy as np
+from tqdm import tqdm, trange
 from Network.discriminator import Discriminator
 from Network.simple_predictor import Simple_Predictor
 from sklearn.metrics import accuracy_score
@@ -19,9 +20,12 @@ config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
 
 # gpu-used
-CUDA_DEVICES = torch.device("cuda:"+config.get('default', 'cuda_device_number') if torch.cuda.is_available() else "cpu")
+CUDA_DEVICES = torch.device("cuda:"+config.get('default',
+                                               'cuda_device_number') if torch.cuda.is_available() else "cpu")
 
-synthetic_dataset_dir = config.get('GenTstVis', 'syntheticDataset_path') + '/' + config.get('GenTstVis', 'date_dir') + '/' + config.get('GenTstVis', 'classification_dir') + '/' + config.get('GenTstVis', 'synthetic_data_name')
+synthetic_dataset_dir = config.get('GenTstVis', 'syntheticDataset_path') + '/' + config.get('GenTstVis', 'date_dir') + \
+    '/' + config.get('GenTstVis', 'classification_dir') + '/' + \
+    config.get('GenTstVis', 'synthetic_data_name')
 
 real_dataset_dir = config.get('GenTstVis', 'Dataset_path')
 
@@ -32,25 +36,26 @@ batch_size = config.getint('test', 'batch_size')
 learning_rate = config.getfloat('test', 'learning_rate')
 seq_len = config.getint('train', 'seq_len')
 
+
 def binary_acc(y_pred, y_test):
     y_pred_tag = torch.round(torch.sigmoid(y_pred))
 
     correct_results_sum = (y_pred_tag == y_test).sum().float()
     acc = correct_results_sum/y_test.shape[0]
     acc = torch.round(acc * 100)
-    
+
     return acc
 
 
 def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader):
 
     # model
-    model = Discriminator(module = 'gru',
-                            time_stamp = 24,
-                            input_size = 6,
-                            hidden_dim = 48,
-                            output_dim = 1,
-                            num_layers = 2)
+    model = Discriminator(module='gru',
+                          time_stamp=24,
+                          input_size=6,
+                          hidden_dim=24,
+                          output_dim=1,
+                          num_layers=2)
     model = model.to(CUDA_DEVICES)
     model.train()
 
@@ -62,12 +67,13 @@ def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_trai
 
     print("Start Discriminator Training")
 
-
-    for epoch in range(d_num_epochs):
+    logger = trange(d_num_epochs, desc=f"Epoch: 0, Loss: 0")
+    for epoch in logger:
 
         training_loss = 0.0
 
-        synthetic_train_data_loader_iterator = iter(synthetic_train_data_loader)
+        synthetic_train_data_loader_iterator = iter(
+            synthetic_train_data_loader)
 
         num_examples = 0
 
@@ -99,14 +105,9 @@ def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_trai
             D_loss.backward()
             optimizer.step()
 
-            training_loss += D_loss.item() * real_inputs.size(0)
+            training_loss = np.sqrt(D_loss.item())
 
-            num_examples += real_inputs.size(0)
-
-        training_loss = training_loss / num_examples
-
-        if epoch % (np.round(d_num_epochs / 5)) == 0:
-            print('step: '+ str(epoch) + '/' + str(d_num_epochs) + ', d_loss: ' + str(np.round(training_loss, 4)))
+        logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
 
     print("Finish Discriminator Training")
 
@@ -140,35 +141,37 @@ def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_trai
 
             outputs = torch.cat((real_output, fake_output), 0)
 
+            # print("outputs: {}".format(outputs[-1]))
+
             outputs = torch.round(torch.sigmoid(outputs))
+
+            # print("outputs: {}".format(outputs[-1]))
 
             labels = torch.cat((real_label, fake_label), 0)
 
             correct_results_sum += (labels == outputs).sum().item()
 
             results_sum += (labels.shape[0] * labels.shape[1])
-        
+
     acc = np.round((correct_results_sum / results_sum), 4)
-        
 
     print("Finish Discriminator Testing")
 
-    print("[test.py] Accuracy: {} %".format(acc* 100))
+    print("[test.py] Accuracy: {} %".format(acc * 100))
     discriminative_score = np.abs(0.5-acc)
 
     return discriminative_score
-
 
 
 def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
     # model
     model = Simple_Predictor(
-      time_stamp=23, 
-      input_size=6, 
-      hidden_dim=48, 
-      output_dim=6, 
-      num_layers=2
+        time_stamp=23,
+        input_size=6,
+        hidden_dim=24,
+        output_dim=6,
+        num_layers=2
     )
     model = model.to(CUDA_DEVICES)
     model.train()
@@ -181,7 +184,8 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
     print("Start Predictive Training")
 
-    for epoch in range(p_num_epochs):
+    logger = trange(p_num_epochs, desc=f"Epoch: 0, Loss: 0")
+    for epoch in logger:
 
         training_loss = 0.0
 
@@ -203,7 +207,7 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
             X = X.to(CUDA_DEVICES)
             Y = Y.to(CUDA_DEVICES)
-            
+
             y_pred = model(X, None)
             # print("y_pred: {}".format(y_pred.shape))
 
@@ -212,14 +216,9 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
             loss.backward()
             optimizer.step()
 
-            training_loss += loss.item() * X.size(0)
+            training_loss = np.sqrt(loss.item())
 
-            num_examples += X.size(0)
-
-        training_loss = training_loss / num_examples
-
-        if epoch % np.round(p_num_epochs / 5) == 0:
-            print('step: '+ str(epoch) + '/' + str(p_num_epochs) + ', p_loss: ' + str(np.round(training_loss, 4)))
+        logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
 
     print("Finish Predictive Training")
 
@@ -230,7 +229,7 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
     # Compute the performance in terms of MAE
     sum_absolute_errors = 0
     sum_examples = 0
-    
+
     with torch.no_grad():
 
         for i, inputs in enumerate(real_test_data_loader):
@@ -243,10 +242,11 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
             X = X.to(CUDA_DEVICES)
             Y = Y.to(CUDA_DEVICES)
-                
+
             Y_pred = model(X, None)
 
-            sum_absolute_errors += torch.abs(torch.sum(torch.sub(Y_pred, Y))).item()
+            sum_absolute_errors += torch.abs(
+                torch.sum(torch.sub(Y_pred, Y))).item()
 
             sum_examples += Y.shape[0] * Y.shape[1]
 
@@ -257,20 +257,24 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
     return predictive_score
 
 
-
-
 if __name__ == '__main__':
 
-    real_data_set = TimeSeriesDataset(root_dir=real_dataset_dir, transform=None, seq_len=seq_len)
-    synthetic_data_set = TimeSeriesDataset(root_dir=synthetic_dataset_dir, transform=None, seq_len=seq_len)
+    real_data_set = TimeSeriesDataset(
+        root_dir=real_dataset_dir, transform=None, seq_len=seq_len)
+    synthetic_data_set = TimeSeriesDataset(
+        root_dir=synthetic_dataset_dir, transform=None, seq_len=seq_len)
 
-    real_train_data_loader, real_test_data_loader = train_test_dataloader(data_set=real_data_set, mode='test')
+    real_train_data_loader, real_test_data_loader = train_test_dataloader(
+        data_set=real_data_set, mode='test')
 
-    synthetic_train_data_loader, synthetic_test_data_loader = train_test_dataloader(data_set=synthetic_data_set, mode='test')
+    synthetic_train_data_loader, synthetic_test_data_loader = train_test_dataloader(
+        data_set=synthetic_data_set, mode='test')
 
-    discriminative_score = Discriminative(real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader)
+    discriminative_score = Discriminative(
+        real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader)
 
-    predictive_score = Predictive(synthetic_train_data_loader, real_test_data_loader)
+    predictive_score = Predictive(
+        synthetic_train_data_loader, real_test_data_loader)
 
     print("Discriminative score: {}".format(discriminative_score))
     print("Predictive score: {}".format(predictive_score))

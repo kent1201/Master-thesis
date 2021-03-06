@@ -1,0 +1,53 @@
+1. discriminator 初始 learning rate: 0.003 => 0.001
+2. 修正 MinMaxScalar1, MinMaxScalar2 從 batch normalization -> all data init normalization
+3. 更新 Timedataset.py, Time_generate_data.py, Time_data_visualization.py 讀取方式，現在無需使用 Dataset 讀取方式即可 load data
+4. 更新 Time_generate_data.py save data 方式，現在可以儲存相近 (+-1) 筆數的資料了。新增 iteration，可自由決定生產幾倍資料。
+5. 更新 Time_data_visualization.py: 現在 data preprocess 只使用 MinMaxScalar1
+
+重新執行 stock data, energy data 資料 (epoch=100 先看效果如何)
+
+stock_gru_MSE_200_64_24_6_48_5
+
+
+
+stock_gru_Soft_DTW_200_64_24_6_48_5
+
+
+
+stock_gru_MSE_wgan_200_64_24_6_48_5
+
+
+
+stock_gru_Soft_DTW_wgan_200_64_24_6_48_5
+
+
+
+stock_gru_MSE_hinge_200_64_24_6_48_5
+
+
+
+stock_gru_Soft_DTW_hinge_200_64_24_6_48_5
+
+
+
+energy_gru_MSE_200_64_24_28_120_5
+
+
+
+energy_gru_Soft_DTW_500_64_24_28_120_5
+
+
+
+energy_gru_MSE_wgan_500_64_24_28_120_5
+
+
+
+energy_gru_Soft_DTW_wgan_500_64_24_28_120_5
+
+
+
+energy_gru_MSE_hinge_500_64_24_28_120_5
+
+
+
+energy_gru_Soft_DTW_hinge_500_64_24_28_120_5

@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
 import itertools
+from tqdm import tqdm, trange
 from Network.embedder import Embedder
 from Network.recovery import Recovery
 from Network.supervisor import Supervisor
@@ -29,7 +30,8 @@ config.read('Configure.ini', encoding="utf-8")
 # torch.backends.cudnn.benchmark = True
 
 # gpu-used
-CUDA_DEVICES = torch.device("cuda:"+config.get('default', 'cuda_device_number') if torch.cuda.is_available() else "cpu")
+CUDA_DEVICES = torch.device("cuda:"+config.get('default',
+                                               'cuda_device_number') if torch.cuda.is_available() else "cpu")
 dataset_dir = config.get('train', 'Dataset_path')
 num_epochs = config.getint('train', 'num_epochs')
 batch_size = config.getint('train', 'batch_size')
@@ -52,372 +54,375 @@ discriminator_name = config.get('default', 'discriminator_name')
 module_name = config.get('default', 'module_name')
 
 # 1. Embedding network training
-def train_stage1(data_set, data_loader, embedder, recovery):
 
-  # Loss
-  criterion = EmbedderLoss(dis_func = "MSE")
 
-  # model
-  embedder.train()
-  recovery.train()
+def train_stage1(data_loader, embedder, recovery):
 
-  # Optimizer
-  # models_param = [embedder.parameters(), recovery.parameters()]
-  # optimizer = torch.optim.Adam(params=itertools.chain(*models_param), lr=learning_rate)
-  optimizer = torch.optim.Adam(
-    [{'params': embedder.parameters()},
-     {'params': recovery.parameters()}],
-    lr=learning_rate1
-  )
+    # Loss
+    criterion = EmbedderLoss(dis_func="MSE")
 
-  print('Start Embedding Network Training')
+    # model
+    embedder.train()
+    recovery.train()
 
-  for epoch in range(num_epochs):
+    # Optimizer
+    optimizer = torch.optim.Adam(
+        [{'params': embedder.parameters()},
+         {'params': recovery.parameters()}],
+        lr=learning_rate1
+    )
 
-    training_loss = 0.0
+    print('Start Embedding Network Training')
 
-    for _, inputs in enumerate(data_loader):
+    # for epoch in range(num_epochs):
+    logger = trange(num_epochs, desc=f"Epoch: 0, Loss: 0")
+    for epoch in logger:
 
-      X = inputs[0].to(CUDA_DEVICES)
+        training_loss = 0.0
 
-      optimizer.zero_grad()
+        for _, inputs in enumerate(data_loader):
 
-      H = embedder(X, None)
-      # For attention
-      # decoder_inputs = torch.zeros_like(X)
-      # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-      # outputs = recovery(H, decoder_inputs)
-      # For GRU
-      outputs = recovery(H, None)
+            X = inputs[0].to(CUDA_DEVICES)
 
-      E_loss_T0, E_loss0 = criterion(outputs, X)
-      E_loss0.backward()
-      optimizer.step()
-      training_loss = np.sqrt(E_loss_T0.item())
+            optimizer.zero_grad()
 
-    if epoch % (np.round(num_epochs / 5))  == 0:
-      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(training_loss,4)))
+            H = embedder(X, None)
+            # For attention
+            if module_name == "self-attn":
+                decoder_inputs = torch.zeros_like(X)
+                decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+                outputs = recovery(H, decoder_inputs)
+            # For GRU
+            else:
+                outputs = recovery(H, None)
 
-  print('Finish Embedding Network Training')
+            E_loss_T0, E_loss0 = criterion(outputs, X)
+            E_loss0.backward()
+            optimizer.step()
+            training_loss = np.sqrt(E_loss_T0.item())
+
+        logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
+
+        # if epoch % (np.round(num_epochs / 5))  == 0:
+        #   print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(training_loss,4)))
+
+    print('Finish Embedding Network Training')
+
 
 # 2. Training only with supervised loss
-def train_stage2(data_set, data_loader, embedder, supervisor, generator):
+def train_stage2(data_loader, embedder, supervisor, generator):
 
-  # Loss
-  criterion = SupervisedLoss(dis_func=dis_func)
+    # Loss
+    criterion = SupervisedLoss(dis_func=dis_func)
 
-  # model
-  embedder.train()
-  supervisor.train()
-  generator.train()
+    # model
+    embedder.train()
+    supervisor.train()
+    generator.train()
 
-  # Optimizer
-  # models_param = [generator.parameters(), supervisor.parameters()]
-  # optimizer = torch.optim.Adam(params=itertools.chain(*models_param), lr=learning_rate)
+    # # Optimizer
+    optimizer = torch.optim.Adam(
+        [{'params': generator.parameters()},
+         {'params': supervisor.parameters()}],
+        lr=learning_rate2
+    )
 
-  optimizer = torch.optim.Adam(
-    [{'params': generator.parameters()},
-     {'params': supervisor.parameters()}],
-    lr=learning_rate2
-  )
+    print('Start Training with Supervised Loss Only')
 
-  # optimizer = torch.optim.RMSprop(
-  #   [{'params': generator.parameters()},
-  #    {'params': supervisor.parameters()}],
-  #    lr=learning_rate2, alpha=0.99, eps=1e-08, weight_decay=0, momentum=0, centered=False)
+    logger = trange(num_epochs, desc=f"Epoch: 0, Loss: 0")
+    for epoch in logger:
 
-  print('Start Training with Supervised Loss Only')
+        training_loss = 0.0
 
-  for epoch in range(num_epochs):
+        for _, inputs in enumerate(data_loader):
 
-    training_loss = 0.0
+            X = inputs[0].to(CUDA_DEVICES)
 
-    for _, inputs in enumerate(data_loader):
+            optimizer.zero_grad()
 
-      X = inputs[0].to(CUDA_DEVICES)
+            H = embedder(X, None)
 
+            H_hat_supervise = supervisor(H, None)
 
-      optimizer.zero_grad()
+            loss = criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
+            loss.backward()
+            optimizer.step()
 
-      H = embedder(X, None)
+            training_loss = np.sqrt(loss.item())
 
-      H_hat_supervise = supervisor(H, None)
+        logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
 
-      loss = criterion(H_hat_supervise[:,:-1,:], H[:,1:,:])
-      loss.backward()
-      optimizer.step()
+    print('Finish Training with Supervised Loss Only')
 
-      training_loss = np.sqrt(loss.item())
-
-    if epoch % (np.round(num_epochs / 5)) == 0:
-      print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', s_loss: ' + str(np.round(training_loss, 4)))
-
-
-  print('Finish Training with Supervised Loss Only')
 
 # 3. Joint Training
-def train_stage3(data_set, data_loader, embedder, recovery, generator, supervisor, discriminator):
+def train_stage3(data_loader, embedder, recovery, generator, supervisor, discriminator):
 
-  print('Start Joint Training')
+    print('Start Joint Training')
 
-  # generator loss
-  Gloss_criterion = JointGloss(dis_func=dis_func, mode=uloss_func)
-  Eloss_criterion = JointEloss(dis_func=dis_func)
-  Dloss_criterion = JointDloss(mode=uloss_func)
+    # generator loss
+    Gloss_criterion = JointGloss(dis_func=dis_func, mode=uloss_func)
+    Eloss_criterion = JointEloss(dis_func=dis_func)
+    Dloss_criterion = JointDloss(mode=uloss_func)
 
+    # model
+    embedder.train()
+    recovery.train()
+    generator.train()
+    supervisor.train()
+    discriminator.train()
 
-  # model
-  embedder.train()
-  recovery.train()
-  generator.train()
-  supervisor.train()
-  discriminator.train()
+    # Optimizer
+    optimizerG = torch.optim.Adam(
+        [{'params': generator.parameters()},
+         {'params': supervisor.parameters()}],
+        lr=learning_rate3
+    )
+    optimizerD = torch.optim.Adam(
+        params=discriminator.parameters(), lr=learning_rate5)
 
-  # optimizer
-  # models_paramG = [generator.parameters(), supervisor.parameters()]
-  # optimizerG = torch.optim.Adam(params=itertools.chain(*models_paramG), lr=learning_rate)
+    optimizerE = torch.optim.Adam(
+        [{'params': embedder.parameters()},
+         {'params': recovery.parameters()}],
+        lr=learning_rate4
+    )
 
-  optimizerG = torch.optim.Adam(
-    [{'params': generator.parameters()},
-     {'params': supervisor.parameters()}],
-    lr=learning_rate3
-  )
+    logger = trange(
+        num_epochs,  desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0")
+    for epoch in logger:
 
-  # optimizerG = torch.optim.RMSprop(
-  #   [{'params': generator.parameters()},
-  #    {'params': supervisor.parameters()}],
-  #    lr=learning_rate3, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
+        training_loss_G = 0.0
+        # training_loss_U = 0.0
+        # training_loss_S = 0.0
+        # training_loss_V = 0.0
+        training_loss_E0 = 0.0
+        training_loss_D = 0.0
 
-  # models_paramE = [embedder.parameters(), recovery.parameters()]
-  # optimizerE = torch.optim.Adam(params=itertools.chain(*models_paramE), lr=learning_rate)
+        for inputs in data_loader:
+            # Generator training (twice more than discriminator training)
+            for _ in range(2):
+                X = inputs[0].to(CUDA_DEVICES)
 
-  optimizerE = torch.optim.Adam(
-    [{'params': embedder.parameters()},
-     {'params': recovery.parameters()}],
-    lr=learning_rate4
-  )
+                optimizerG.zero_grad()
 
-  optimizerD = torch.optim.Adam(params=discriminator.parameters(), lr=learning_rate5)
+                # Train generator
+                # Generate random data
+                z_batch_size, z_seq_len, z_dim = X.shape
+                Z = random_generator(z_batch_size, z_seq_len, z_dim)
+                Z = Z.to(CUDA_DEVICES)
 
-  # optimizerD = torch.optim.RMSprop(discriminator.parameters(), lr=learning_rate5, alpha=0.99, eps=1e-7, weight_decay=0, momentum=0, centered=False)
+                # Supervised Forward Pass
+                H = embedder(X, None)
+                # For attention
+                if module_name == "self-attn":
+                    decoder_inputs = torch.zeros_like(X)
+                    decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+                    X_tilde = recovery(H, decoder_inputs)
+                # For GRU
+                else:
+                    H_hat_supervise = supervisor(H, None)
+                    X_tilde = recovery(H, None)
 
+                # Generator Forward Pass
+                E_hat = generator(Z, None)
+                H_hat = supervisor(E_hat, None)
 
-  for epoch in range(num_epochs):
+                # Synthetic data generated
+                # For attention
+                if module_name == "self-attn":
+                    decoder_inputs = torch.zeros_like(X)
+                    decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+                    X_hat = recovery(H_hat, decoder_inputs)
+                # For GRU
+                else:
+                    X_hat = recovery(H_hat, None)
 
-    training_loss_G = 0.0
-    training_loss_U = 0.0
-    training_loss_S = 0.0
-    training_loss_V = 0.0
-    training_loss_E0 = 0.0
-    training_loss_D = 0.0
+                # Adversarial loss
+                Y_fake = discriminator(H_hat, None)
+                Y_fake_e = discriminator(E_hat, None)
 
-    
-    for inputs in data_loader:
-      ## Generator training (twice more than discriminator training)
-      for _ in range(2):
-        X = inputs[0].to(CUDA_DEVICES)
+                lossG, loss_U, loss_S, loss_V = Gloss_criterion(
+                    Y_fake, Y_fake_e, H[:, 1:, :], H_hat_supervise[:, :-1, :], X, X_hat)
 
-        optimizerG.zero_grad()
+                lossG.backward()
+                optimizerG.step()
 
-        # Train generator
-        # Generate random data
-        z_batch_size, z_seq_len, z_dim = X.shape
-        Z = random_generator(z_batch_size, z_seq_len, z_dim)
-        Z = Z.to(CUDA_DEVICES)
+                training_loss_G = np.sqrt(lossG.item())
+                # training_loss_U = np.sqrt(loss_U.item())
+                # training_loss_S = np.sqrt(loss_S.item())
+                # training_loss_V = np.sqrt(loss_V.item())
 
-        # Supervised Forward Pass
-        H = embedder(X, None)
-        # For attention
-        # decoder_inputs = torch.zeros_like(X)
-        # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-        # X_tilde = recovery(H, decoder_inputs)
-        # For GRU
-        H_hat_supervise = supervisor(H, None)
-        X_tilde = recovery(H, None)
+                # Train autoencoder
+                optimizerE.zero_grad()
 
-        # Generator Forward Pass
-        E_hat = generator(Z, None)
-        H_hat = supervisor(E_hat, None)
-        
-        # Synthetic data generated
-        # For attention
-        # decoder_inputs = torch.zeros_like(X)
-        # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-        # X_hat = recovery(H_hat, decoder_inputs)
-        # For GRU
-        X_hat = recovery(H_hat, None)
+                H = embedder(X, None)
+                # For attention
+                if module_name == "self-attn":
+                    decoder_inputs = torch.zeros_like(X)
+                    decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+                    X_tilde = recovery(H, decoder_inputs)
+                # For GRU
+                else:
+                    X_tilde = recovery(H, None)
 
-        # Adversarial loss
-        Y_fake = discriminator(H_hat, None)
-        Y_fake_e = discriminator(E_hat, None)
+                H_hat_supervise = supervisor(H, None)
 
-        lossG, loss_U, loss_S, loss_V = Gloss_criterion(Y_fake, Y_fake_e, H[:,1:,:], H_hat_supervise[:,:-1,:], X, X_hat)
+                lossE, lossE_0 = Eloss_criterion(
+                    X_tilde, X, H[:, 1:, :], H_hat_supervise[:, :-1, :])
 
-        lossG.backward()
-        optimizerG.step()
+                lossE.backward()
+                optimizerE.step()
 
+                training_loss_E0 = np.sqrt(lossE_0.item())
 
-        training_loss_G = np.sqrt(lossG.item())
-        training_loss_U = np.sqrt(loss_U.item())
-        training_loss_S = np.sqrt(loss_S.item())
-        training_loss_V = np.sqrt(loss_V.item())
+            # Discriminator training
 
-        # Train autoencoder
-        optimizerE.zero_grad()
+            optimizerD.zero_grad()
 
-        H = embedder(X, None)
-        # For attention
-        # decoder_inputs = torch.zeros_like(X)
-        # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-        # X_tilde = recovery(H, decoder_inputs)
-        # For GRU
-        X_tilde = recovery(H, None)
+            # Train discriminator
+            # Generate random data
+            z_batch_size, z_seq_len, z_dim = X.shape
+            Z = random_generator(z_batch_size, z_seq_len, z_dim)
+            Z = Z.to(CUDA_DEVICES)
 
-        H_hat_supervise = supervisor(H, None)
+            # latent code forward
+            H = embedder(X, None).detach()
+            H_hat = supervisor(E_hat, None).detach()
+            E_hat = generator(Z, None).detach()
 
-        lossE, lossE_0 = Eloss_criterion(X_tilde, X, H[:,1:,:], H_hat_supervise[:,:-1,:])
+            # Forward Pass
+            # Encoded original data
+            Y_real = discriminator(H, None)
+            # Output of supervisor
+            Y_fake = discriminator(H_hat, None)
+            Y_fake_e = discriminator(
+                E_hat, None)   # Output of generator
 
-        lossE.backward()
-        optimizerE.step()
+            # Adversarial loss
+            lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
+            if uloss_func == "wgan":
+                with torch.backends.cudnn.flags(enabled=False):
+                    lossD_gp = _gradient_penalty(
+                        CUDA_DEVICES, discriminator, H, H_hat)
+                    lossD = lossD.add(lossD_gp)
 
-        training_loss_E0 = np.sqrt(lossE_0.item())
+            # Train discriminator (only when the discriminator does not work well)
+            if lossD > 0.15:
+                lossD.backward()
+                optimizerD.step()
 
+            training_loss_D = lossD.item()
 
-    ## Discriminator training
-    # with torch.backends.cudnn.flags(enabled=False):
-      optimizerD.zero_grad()
+        logger.set_description(
+            f"Epoch: {epoch}, E: {training_loss_E0:.4f}, G: {training_loss_G:.4f}, D: {training_loss_D:.4f}"
+        )
 
-      # Train discriminator
+        # # Print multiple checkpoints
+        # if epoch % (np.round(num_epochs / 5)) == 0:
+        #   print('step: '+ str(epoch) + '/' + str(num_epochs) +
+        #         ', d_loss: ' + str(np.round(training_loss_D, 4)) +
+        #         ', g_loss_u: ' + str(np.round(training_loss_U, 4)) +
+        #         ', g_loss_s: ' + str(np.round(training_loss_S, 4)) +
+        #         ', g_loss_v: ' + str(np.round(training_loss_V, 4)) +
+        #         ', e_loss_t0: ' + str(np.round(training_loss_E0, 4)))
 
-      # Generate random data
-      z_batch_size, z_seq_len, z_dim = X.shape
-      Z = random_generator(z_batch_size, z_seq_len, z_dim)
-      Z = Z.to(CUDA_DEVICES)
-
-      # latent code forward
-      H = embedder(X, None).detach()
-      H_hat = supervisor(E_hat, None).detach()
-      E_hat = generator(Z, None).detach()
-      
-      # Forward Pass
-      Y_real = discriminator(H, None)         # Encoded original data
-      Y_fake = discriminator(H_hat, None)     # Output of supervisor
-      Y_fake_e = discriminator(E_hat, None)   # Output of generator
-      
-      # Adversarial loss
-      lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
-      # lossD_gp = _gradient_penalty(CUDA_DEVICES, discriminator, H, H_hat)
-      # lossD = lossD.add(lossD_gp)
-
-      # Train discriminator (only when the discriminator does not work well)
-      if lossD > 0.15:
-        lossD.backward()
-        optimizerD.step()
-      
-      training_loss_D = lossD.item()
-
-    # Print multiple checkpoints
-    if epoch % (np.round(num_epochs / 5)) == 0:
-      print('step: '+ str(epoch) + '/' + str(num_epochs) +
-            ', d_loss: ' + str(np.round(training_loss_D, 4)) +
-            ', g_loss_u: ' + str(np.round(training_loss_U, 4)) +
-            ', g_loss_s: ' + str(np.round(training_loss_S, 4)) +
-            ', g_loss_v: ' + str(np.round(training_loss_V, 4)) +
-            ', e_loss_t0: ' + str(np.round(training_loss_E0, 4)))
-
-  print('Finish Joint Training')
+    print('Finish Joint Training')
 
 
 if __name__ == '__main__':
 
+    # save model path
+    today = date.today()
+    save_time = today.strftime("%d_%m_%Y")
+    output_dir = config.get('train', 'model_path') + '/' + save_time + \
+        '/' + config.get('train', 'classification_dir') + '/'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-  # save model path
-  today = date.today()
-  save_time = today.strftime("%d_%m_%Y")
-  output_dir = config.get('train', 'model_path') + '/' + save_time + '/' + config.get('train', 'classification_dir') + '/'
-  if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+    # Parameters
+    print("CUDA DEVICE: {}".format(CUDA_DEVICES))
+    print("[train] module: {}".format(module_name))
+    print("[train] action: {}".format(config.get(
+        'train', 'classification_dir').split('_')[0]))
+    print("[train] seq_len: {}".format(seq_len))
+    print("[train] n_features: {}".format(n_features))
+    print("[train] hidden size: {}".format(hidden_size))
+    print("[train] num_layers: {}".format(num_layers))
+    print("[train] num_epochs: {}".format(num_epochs))
+    print("[train] batch_size: {}".format(batch_size))
+    print("[train] distance function: {}".format(dis_func))
+    print("[train] adversarial loss function: {}".format(uloss_func))
 
-  # Parameters
-  print("CUDA DEVICE: {}".format(CUDA_DEVICES))
-  print("[train] module: {}".format(module_name))
-  print("[train] action: {}".format(config.get('train', 'classification_dir').split('_')[0]))
-  print("[train] seq_len: {}".format(seq_len))
-  print("[train] n_features: {}".format(n_features))
-  print("[train] hidden size: {}".format(hidden_size))
-  print("[train] num_layers: {}".format(num_layers))
-  print("[train] num_epochs: {}".format(num_epochs))
-  print("[train] batch_size: {}".format(batch_size))
-  print("[train] distance function: {}".format(dis_func))
-  print("[train] adversarial loss function: {}".format(uloss_func))
+    # models
+    embedder = Embedder(
+        module=module_name,
+        time_stamp=seq_len,
+        input_size=n_features,
+        hidden_dim=hidden_size,
+        output_dim=hidden_size,
+        num_layers=num_layers,
+        activate_function=nn.Sigmoid()
+    )
 
-  # models
-  embedder = Embedder(
-    module = module_name,
-    time_stamp = seq_len,
-    input_size = n_features,
-    hidden_dim = hidden_size,
-    output_dim = hidden_size,
-    num_layers = num_layers,
-    activate_function=nn.Tanh()
-  )
+    recovery = Recovery(
+        module=module_name,
+        time_stamp=seq_len,
+        input_size=hidden_size,
+        hidden_dim=hidden_size,
+        output_dim=n_features,
+        num_layers=num_layers,
+        activate_function=nn.Sigmoid()
+    )
 
-  recovery = Recovery(
-    module = module_name,
-    time_stamp = seq_len,
-    input_size = hidden_size,
-    hidden_dim = hidden_size,
-    output_dim = n_features,
-    num_layers = num_layers,
-    activate_function=nn.Tanh()
-  )
+    generator = Generator(
+        module=module_name,
+        time_stamp=seq_len,
+        input_size=n_features,
+        hidden_dim=hidden_size,
+        output_dim=hidden_size,
+        num_layers=num_layers,
+        activate_function=nn.Tanh()
+    )
 
-  generator = Generator(
-    module = module_name,
-    time_stamp = seq_len,
-    input_size = n_features,
-    hidden_dim = hidden_size,
-    output_dim = hidden_size,
-    num_layers = num_layers,
-    activate_function=nn.Tanh()
-  )
+    supervisor = Supervisor(
+        module=module_name,
+        time_stamp=seq_len,
+        input_size=hidden_size,
+        hidden_dim=hidden_size,
+        output_dim=hidden_size,
+        # [Supervisor] num_layers must less(-1) than other component, embedder
+        num_layers=num_layers - 1,
+        activate_function=nn.Sigmoid()
+    )
 
-  supervisor = Supervisor(
-    module = module_name,
-    time_stamp = seq_len,
-    input_size = hidden_size,
-    hidden_dim = hidden_size,
-    output_dim = hidden_size,
-    # [Supervisor] num_layers must less(-1) than other component, embedder
-    num_layers = num_layers - 1,
-    activate_function=nn.Tanh()
-  )
+    discriminator = Discriminator(
+        module=module_name,
+        time_stamp=seq_len,
+        input_size=hidden_size,
+        hidden_dim=hidden_size,
+        output_dim=1,
+        num_layers=num_layers,
+    )
 
-  discriminator = Discriminator(
-    module = module_name,
-    time_stamp = seq_len,
-    input_size = hidden_size,
-    hidden_dim = hidden_size,
-    output_dim = 1,
-    num_layers = num_layers,
-  )
+    embedder = embedder.to(CUDA_DEVICES)
+    recovery = recovery.to(CUDA_DEVICES)
+    generator = generator.to(CUDA_DEVICES)
+    supervisor = supervisor.to(CUDA_DEVICES)
+    discriminator = discriminator.to(CUDA_DEVICES)
 
-  embedder = embedder.to(CUDA_DEVICES)
-  recovery = recovery.to(CUDA_DEVICES)
-  generator = generator.to(CUDA_DEVICES)
-  supervisor = supervisor.to(CUDA_DEVICES)
-  discriminator = discriminator.to(CUDA_DEVICES)
+    # Dataset
+    Data_set = TimeSeriesDataset(
+        root_dir=dataset_dir, transform=None, seq_len=seq_len)
+    Data_loader = DataLoader(
+        dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=1)
 
-  # Dataset
-  Data_set = TimeSeriesDataset(root_dir=dataset_dir, transform=None, seq_len=seq_len)
-  Data_loader = DataLoader(dataset=Data_set, batch_size=batch_size, shuffle=True, num_workers=1)
+    train_stage1(Data_loader, embedder, recovery)
+    train_stage2(Data_loader, embedder, supervisor, generator)
+    train_stage3(Data_loader, embedder, recovery,
+                 generator, supervisor, discriminator)
 
-  train_stage1(Data_set, Data_loader, embedder, recovery)
-  train_stage2(Data_set, Data_loader, embedder, supervisor, generator)
-  train_stage3(Data_set, Data_loader, embedder, recovery, generator, supervisor, discriminator)
-
-  torch.save(embedder, f'{output_dir+embedder_name}')
-  torch.save(recovery, f'{output_dir+recovery_name}')
-  torch.save(generator, f'{output_dir+generator_name}')
-  torch.save(supervisor, f'{output_dir+supervisor_name}')
-  torch.save(discriminator, f'{output_dir+discriminator_name}')
+    torch.save(embedder, f'{output_dir+embedder_name}')
+    torch.save(recovery, f'{output_dir+recovery_name}')
+    torch.save(generator, f'{output_dir+generator_name}')
+    torch.save(supervisor, f'{output_dir+supervisor_name}')
+    torch.save(discriminator, f'{output_dir+discriminator_name}')

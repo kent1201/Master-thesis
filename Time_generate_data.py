@@ -10,12 +10,14 @@ from torchvision import transforms
 import numpy as np
 from Timedataset import TimeSeriesDataset
 from utils import random_generator
+from dataset_preprocess import data_preprocess, batch_generation, data_postprocess
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
 
 # gpu-used
-CUDA_DEVICES = torch.device("cuda:"+config.get('default', 'cuda_device_number') if torch.cuda.is_available() else "cpu")
+CUDA_DEVICES = torch.device("cuda:"+config.get('default',
+                                               'cuda_device_number') if torch.cuda.is_available() else "cpu")
 
 # 模型參數路徑
 PATH_TO_WEIGHTS = config.get('GenTstVis', 'model_path')
@@ -29,136 +31,109 @@ classification_dir = config.get('GenTstVis', 'classification_dir')
 date_dir = config.get('GenTstVis', 'date_dir')
 seq_len = config.getint('train', 'seq_len')
 
-generator_name = config.get('generate_data','generator_name')
-supervisor_name = config.get('generate_data','supervisor_name')
-recovery_name = config.get('generate_data','recovery_name')
+generator_name = config.get('generate_data', 'generator_name')
+supervisor_name = config.get('generate_data', 'supervisor_name')
+recovery_name = config.get('generate_data', 'recovery_name')
 
 syntheitc_data_name = config.get('GenTstVis', 'synthetic_data_name')
+module_name = config.get('default', 'module_name')
 
-
-def ReMinMaxScaler2(data, min_val, max_val):
-    """Min-Max Normalizer.
-
-    Args:
-      - data: raw data
-
-    Returns:
-      - norm_data: normalized data
-      - min_val: minimum values (for renormalization)
-      - max_val: maximum values (for renormalization)
-    """
-    # print("[generate_data.py] min_val2: {}, max_val2: {}".format(min_val.shape, max_val.shape))
-    min_val = min_val.unsqueeze(1).unsqueeze(2)
-    max_val = max_val.unsqueeze(1).unsqueeze(2)
-    data = torch.mul(torch.add(data, 1), 0.5)
-    data = torch.mul(data, torch.add(max_val, 1e-7))
-    re_data = torch.add(data, min_val)
-
-    return re_data
-
-
-def ReMinMaxScaler1(data, min_val, max_val):
-    """Min Max normalizer.
-      do for each column
-      Args:
-      -  data: original data
-      Returns:
-      - norm_data: normalized data
-    """
-    min_val = min_val.unsqueeze(1)
-    max_val = max_val.unsqueeze(1)
-    # print("[generate_data.py] min_val1: {}, max_val1: {}".format(min_val.shape, max_val.shape))
-    data = torch.mul(torch.add(data, 1), 0.5)
-    data = torch.mul(data, torch.sub(max_val, min_val))
-    re_data = torch.add(data, min_val)
-
-    return re_data
+times_iteration = config.getint('generate_data', 'iteration')
 
 
 def concat_data(data, data_list):
-  for i in range(0, data.size(0)):
-    temp_data = data[i]
-    temp_data = temp_data.data.cpu().numpy()
-    final_data = temp_data[::-1]
-    if len(data_list):
-      data_list = np.concatenate((data_list, final_data), axis=0)
-    else:
-      data_list = final_data
-  return data_list
-
-def Save_Data(data, data_names):
-
-  output_dir_real = OUTPUT_DIR + '/' + date_dir + '/' + classification_dir
-  # print("saved_data_dir_: {}".format(output_dir_real))
-
-  if not os.path.exists(output_dir_real):
-    os.makedirs(output_dir_real)
-
-  file_name = data_names
-  output_path = os.path.join(output_dir_real, file_name)
-  temp_df = pd.DataFrame(data)
-  temp_df.to_csv(output_path, index=False, header=False)
-
-  return data_names
+    # concat each batch data into a alist
+    for i in range(0, data.size(0)):
+        temp_data = data[i]
+        final_data = temp_data.data.numpy()
+        if len(data_list):
+            data_list = np.concatenate((data_list, final_data), axis=0)
+        else:
+            data_list = final_data
+    return data_list
 
 
+def Save_Data(data, save_path, data_names):
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    file_name = data_names
+    output_path = os.path.join(save_path, file_name)
+    temp_df = pd.DataFrame(data)
+    temp_df.to_csv(output_path, index=False, header=False)
+
+    return data_names
 
 
 def Generate_data():
 
-  data_set = TimeSeriesDataset(root_dir=dataset_dir, transform=None, seq_len=seq_len)
-  data_loader = DataLoader(dataset=data_set, batch_size=config.getint('generate_data', 'batch_size'), shuffle=True, num_workers=1)
+    # get synthetic data directory
+    save_dir_path = OUTPUT_DIR + '/' + date_dir + '/' + classification_dir
 
-  model_path = PATH_TO_WEIGHTS + '/' + date_dir + '/' + classification_dir
+    # get models' path
+    model_path = PATH_TO_WEIGHTS + '/' + date_dir + '/' + classification_dir
 
-  generator = torch.load(model_path + '/' + generator_name)
-  supervisor = torch.load(model_path +'/' + supervisor_name)
-  recovery = torch.load(model_path + '/' + recovery_name)
+    # load real data
+    real_data = np.loadtxt(dataset_dir, delimiter=",", skiprows=0)
 
-  generator = generator.cuda(CUDA_DEVICES)
-  supervisor = supervisor.cuda(CUDA_DEVICES)
-  recovery = recovery.cuda(CUDA_DEVICES)
+    # get real data min(max) value
+    real_data, min_val1, max_val1, min_val2, max_val2 = data_preprocess(
+        real_data)
 
-  generator.eval()
-  supervisor.eval()
-  recovery.eval()
+    # To get same amount of data, calculate how many batch we need
+    no, dim = np.asarray(real_data).shape
+    batch_size = round(no / seq_len)
 
-  data_names = 1
-  generated_data = []
+    # load model
+    generator = torch.load(model_path + '/' + generator_name)
+    supervisor = torch.load(model_path + '/' + supervisor_name)
+    recovery = torch.load(model_path + '/' + recovery_name)
 
-  for i, inputs in enumerate(data_loader):
+    # move to GPU
+    generator = generator.cuda(CUDA_DEVICES)
+    supervisor = supervisor.cuda(CUDA_DEVICES)
+    recovery = recovery.cuda(CUDA_DEVICES)
 
-    X, min_val1, max_val1, min_val2, max_val2 = inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
+    generator.eval()
+    supervisor.eval()
+    recovery.eval()
 
-    z_batch_size, z_seq_len, z_dim = X.shape
-    Z = random_generator(z_batch_size, z_seq_len, z_dim)
-    Z = Z.to(CUDA_DEVICES)
-    X = X.to(CUDA_DEVICES)
+    data_names = 1
+    generated_data = []
 
-    min_val1 = min_val1.to(CUDA_DEVICES)
-    max_val1 = max_val1.to(CUDA_DEVICES)
-    min_val2 = min_val2.to(CUDA_DEVICES)
-    max_val2 = max_val2.to(CUDA_DEVICES)
+    # times_iteration: How many times of the data's amount we want
+    for _ in range(0, times_iteration):
 
-    E_hat = generator(Z, None)
-    H_hat = supervisor(E_hat, None)
-    # For attention
-    # decoder_inputs = torch.zeros_like(Z)
-    # decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-    # X_hat = recovery(H_hat, decoder_inputs)
-    # For GRU
-    X_hat = recovery(H_hat, None)
+        # generate noize
+        Z = random_generator(batch_size, seq_len, dim)
+        Z = Z.to(CUDA_DEVICES)
 
-    X_hat = ReMinMaxScaler2(X_hat, min_val2, max_val2)
-    X_hat = ReMinMaxScaler1(X_hat, min_val1, max_val1)
+        # generate synthetic data
+        E_hat = generator(Z, None)
+        H_hat = supervisor(E_hat, None)
+        # For attention
+        if module_name == "self-attn":
+            decoder_inputs = torch.zeros_like(Z)
+            decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+            X_hat = recovery(H_hat, decoder_inputs)
+        # For GRU
+        else:
+            X_hat = recovery(H_hat, None)
 
-    generated_data = concat_data(X_hat, generated_data)
+        X_hat = X_hat.cpu().detach()
 
-  data_names = Save_Data(generated_data, syntheitc_data_name)
+        # Make all batch data into a list
+        generated_data = concat_data(X_hat, generated_data)
 
-    # print("i: {}, X_hat: {}".format(i, X_hat[0].data))
+    # Renormalized the synthetic normalized data
+    generated_data = data_postprocess(
+        generated_data, min_val1, max_val1, min_val2, max_val2)
 
+    # Save the data
+    data_names = Save_Data(
+        generated_data, save_dir_path, syntheitc_data_name)
 
 
 if __name__ == '__main__':
-  Generate_data()
+    Generate_data()
