@@ -86,9 +86,9 @@ def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_trai
             if fake_inputs == None:
                 break
 
-            fake_inputs = fake_inputs[0].to(CUDA_DEVICES)
+            fake_inputs = fake_inputs.to(CUDA_DEVICES)
 
-            real_inputs = real_inputs[0].to(CUDA_DEVICES)
+            real_inputs = real_inputs.to(CUDA_DEVICES)
 
             real_outputs = model(real_inputs, None)
             fake_outputs = model(fake_inputs, None)
@@ -129,9 +129,9 @@ def Discriminative(real_train_data_loader, real_test_data_loader, synthetic_trai
             if fake_inputs == None:
                 break
 
-            fake_inputs = fake_inputs[0].to(CUDA_DEVICES)
+            fake_inputs = fake_inputs.to(CUDA_DEVICES)
 
-            real_inputs = real_inputs[0].to(CUDA_DEVICES)
+            real_inputs = real_inputs.to(CUDA_DEVICES)
 
             real_output = model(real_inputs, None)
             fake_output = model(fake_inputs, None)
@@ -195,14 +195,14 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
             optimizer.zero_grad()
 
-            bat, seq, dim = inputs[0].shape
+            bat, seq, dim = inputs.shape
 
             # X = inputs[0][:, :-1, :(dim-1)]
-            X = inputs[0][:, :-1, :]
+            X = inputs[:, :-1, :]
             # print("X: {}".format(X.shape))
 
             # Y = inputs[0][:, 1:, (dim-1)].detach().clone()
-            Y = inputs[0][:, seq-1, :].detach().clone()
+            Y = inputs[:, seq-1, :].detach().clone()
             # print("Y: {}".format(Y.shape))
 
             X = X.to(CUDA_DEVICES)
@@ -234,11 +234,11 @@ def Predictive(synthetic_train_data_loader, real_test_data_loader):
 
         for i, inputs in enumerate(real_test_data_loader):
 
-            bat, seq, dim = inputs[0].shape
+            bat, seq, dim = inputs.shape
 
-            X = inputs[0][:, :-1, :]
+            X = inputs[:, :-1, :]
 
-            Y = inputs[0][:, seq-1, :]
+            Y = inputs[:, seq-1, :]
 
             X = X.to(CUDA_DEVICES)
             Y = Y.to(CUDA_DEVICES)

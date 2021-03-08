@@ -10,7 +10,7 @@ from Network.Self_Attention.layers import DecoderLayer
 
 
 class Recovery(nn.Module):
-    def __init__(self, module='gru', time_stamp=82, input_size=100, hidden_dim=100, output_dim=27, num_layers=10, activate_function=nn.Tanh()):
+    def __init__(self, module='gru', time_stamp=82, input_size=100, hidden_dim=100, output_dim=27, num_layers=10, activate_function=None):
         super(Recovery, self).__init__()
 
         self.module = module
@@ -126,7 +126,10 @@ class Recovery(nn.Module):
             output, _ = self.r_cell(X, H)
             # Outputs shape: (seq_len, batch_size, input_dim)
 
-        output_H = self.fc(output)
+        if self.activate != None:
+            output_H = self.fc(self.activate(output))
+        else:
+            output_H = self.fc(output)
 
         return output_H
 

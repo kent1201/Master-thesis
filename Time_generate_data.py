@@ -10,7 +10,7 @@ from torchvision import transforms
 import numpy as np
 from Timedataset import TimeSeriesDataset
 from utils import random_generator
-from dataset_preprocess import data_preprocess, batch_generation, data_postprocess
+from dataset_preprocess import data_preprocess, ReMinMaxScaler2, data_postprocess
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
@@ -78,12 +78,13 @@ def Generate_data():
     real_data = np.loadtxt(dataset_dir, delimiter=",", skiprows=0)
 
     # get real data min(max) value
-    real_data, min_val1, max_val1, min_val2, max_val2 = data_preprocess(
-        real_data)
+    _, min_val1, max_val1, min_val2, max_val2 = data_preprocess(
+        real_data, seq_len)
 
-    # To get same amount of data, calculate how many batch we need
-    no, dim = np.asarray(real_data).shape
-    batch_size = round(no / seq_len)
+    # To get same amount of data
+    data_seq_len, dim = np.asarray(real_data).shape
+
+    no = data_seq_len // seq_len + 1
 
     # load model
     generator = torch.load(model_path + '/' + generator_name)
@@ -106,7 +107,7 @@ def Generate_data():
     for _ in range(0, times_iteration):
 
         # generate noize
-        Z = random_generator(batch_size, seq_len, dim)
+        Z = random_generator(no, seq_len, dim)
         Z = Z.to(CUDA_DEVICES)
 
         # generate synthetic data
@@ -123,12 +124,14 @@ def Generate_data():
 
         X_hat = X_hat.cpu().detach()
 
+        re_X_hat = ReMinMaxScaler2(X_hat, min_val2, max_val2)
+
         # Make all batch data into a list
-        generated_data = concat_data(X_hat, generated_data)
+        generated_data = concat_data(re_X_hat, generated_data)
 
     # Renormalized the synthetic normalized data
     generated_data = data_postprocess(
-        generated_data, min_val1, max_val1, min_val2, max_val2)
+        generated_data, min_val1, max_val1)
 
     # Save the data
     data_names = Save_Data(

@@ -31,10 +31,12 @@ class JointGloss(nn.Module):
         loss_U, loss_U_e = 0.0, 0.0
 
         loss_V1 = torch.mean(torch.abs(torch.sub(torch.sqrt(torch.add(torch.var(X_hat, dim=0, keepdim=True,
-                                                                                unbiased=True), 1e-7)), torch.sqrt(torch.add(torch.var(X, dim=0, keepdim=True, unbiased=True), 1e-7)))))
+                                                                                unbiased=False), 1e-7)), torch.sqrt(torch.add(torch.var(X, dim=0, keepdim=True, unbiased=True), 1e-7)))))
         loss_V2 = torch.mean(torch.abs(torch.sub(torch.mean(
             X_hat, dim=0, keepdim=True), torch.mean(X, dim=0, keepdim=True))))
         loss_V = loss_V1.add(loss_V2)
+
+        loss_S = self.G_loss_S(H_hat_supervise, H).mean()
 
         if self.mode == "default":
             loss_U = self.G_loss_U(Y_fake, torch.ones_like(Y_fake))
@@ -43,9 +45,9 @@ class JointGloss(nn.Module):
             loss_U = -(Y_fake.mean())
             loss_U_e = -(Y_fake_e.mean())
 
-        loss_U = torch.add(loss_U.add(torch.mul(self.gamma, loss_U_e)), 1e-5)
-        loss_S = torch.mul(torch.sqrt(
-            torch.add(self.G_loss_S(H_hat_supervise, H).mean(), 1e-7)), 100)
+        loss_U = torch.add(loss_U, torch.mul(self.gamma, loss_U_e))
+
+        loss_S = torch.mul(torch.sqrt(loss_S), 100)
         loss = loss_U.add(loss_S).add(torch.mul(loss_V, 100))
         loss = torch.add(loss, 1e-7)
 

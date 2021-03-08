@@ -122,7 +122,7 @@ class Discriminator(nn.Module):
             output, _ = self.r_cell(X, H)
             # Outputs shape: (seq_len, batch_size, input_dim)
         if(self.activate != None):
-            Y = self.fc(self.activate(output)).squeeze(-1)
+            Y = self.activate(self.fc(output)).squeeze(-1)
         else:
             Y = self.fc(output).squeeze(-1)
         return Y

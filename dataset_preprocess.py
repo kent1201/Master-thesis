@@ -40,7 +40,7 @@ def MinMaxScaler1(data):
     denominator = max_val - min_val
     norm_data = numerator / (denominator + 1e-7)
     # rescale to (-1, 1)
-    norm_data = 2 * norm_data - 1
+    # norm_data = 2 * norm_data - 1
     return norm_data, min_val, max_val
 
 
@@ -61,7 +61,7 @@ def MinMaxScaler2(data):
     max_val = np.max(np.max(data, axis=0), axis=0)
     norm_data = data / (max_val + 1e-7)
     # [test] min-max to (-1, 1)
-    norm_data = 2 * norm_data - 1
+    # norm_data = 2 * norm_data - 1
 
     return norm_data, min_val, max_val
 
@@ -86,8 +86,9 @@ def ReMinMaxScaler2(data, min_val, max_val):
     # re_data = torch.add(data, min_val)
 
     # Numpy version
-    temp_data = (data+1) / 2
-    re_data = (temp_data * (max_val + 1e-7)) + min_val
+    # temp_data = (data+1) / 2
+    temp_data = data * (max_val + 1e-7)
+    re_data = temp_data + min_val
 
     return re_data
 
@@ -108,8 +109,9 @@ def ReMinMaxScaler1(data, min_val, max_val):
     # re_data = torch.add(data, min_val)
 
     # Numpy version
-    temp_data = (data+1) / 2
-    re_data = (temp_data * (max_val - min_val + 1e-7)) + min_val
+    # temp_data = (data+1) / 2
+    temp_data = data * (max_val - min_val + 1e-7)
+    re_data = temp_data + min_val
 
     return re_data
 
@@ -134,18 +136,19 @@ def path_preprocess(path):
     return files_path
 
 
-def data_preprocess(data):
+def data_preprocess(data, seq_len):
 
     temp_data = data[::-1]
     temp_data, min_val1, max_val1 = MinMaxScaler1(temp_data)
-    output_data, min_val2, max_val2 = MinMaxScaler2(temp_data)
+    # Convert the normalized data into [batches, seq_len, dimension] with window slicing
+    batch_temp_data = batch_generation(temp_data, seq_len)
+    output_data, min_val2, max_val2 = MinMaxScaler2(batch_temp_data)
 
     return output_data, min_val1, max_val1, min_val2, max_val2
 
 
-def data_postprocess(data, min_val1, max_val1, min_val2, max_val2):
+def data_postprocess(data, min_val1, max_val1):
 
-    temp_data = ReMinMaxScaler2(data, min_val2, max_val2)
     temp_data = ReMinMaxScaler1(data, min_val1, max_val1)
     output_data = temp_data[::-1]
     return output_data

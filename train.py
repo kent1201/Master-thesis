@@ -5,6 +5,7 @@ from datetime import date
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import StepLR
 import numpy as np
 import itertools
 from tqdm import tqdm, trange
@@ -33,7 +34,9 @@ config.read('Configure.ini', encoding="utf-8")
 CUDA_DEVICES = torch.device("cuda:"+config.get('default',
                                                'cuda_device_number') if torch.cuda.is_available() else "cpu")
 dataset_dir = config.get('train', 'Dataset_path')
-num_epochs = config.getint('train', 'num_epochs')
+stage1_epochs = config.getint('train', 'stage1_epochs')
+stage2_epochs = config.getint('train', 'stage2_epochs')
+stage3_epochs = config.getint('train', 'stage3_epochs')
 batch_size = config.getint('train', 'batch_size')
 seq_len = config.getint('train', 'seq_len')
 n_features = config.getint('train', 'n_features')
@@ -72,17 +75,19 @@ def train_stage1(data_loader, embedder, recovery):
         lr=learning_rate1
     )
 
+    scheduler = StepLR(optimizer, step_size=100, gamma=0.8)
+
     print('Start Embedding Network Training')
 
     # for epoch in range(num_epochs):
-    logger = trange(num_epochs, desc=f"Epoch: 0, Loss: 0")
+    logger = trange(stage1_epochs, desc=f"Epoch: 0, Loss: 0")
     for epoch in logger:
 
         training_loss = 0.0
 
         for _, inputs in enumerate(data_loader):
 
-            X = inputs[0].to(CUDA_DEVICES)
+            X = inputs.to(CUDA_DEVICES)
 
             optimizer.zero_grad()
 
@@ -102,6 +107,7 @@ def train_stage1(data_loader, embedder, recovery):
             training_loss = np.sqrt(E_loss_T0.item())
 
         logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
+        scheduler.step()
 
         # if epoch % (np.round(num_epochs / 5))  == 0:
         #   print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(training_loss,4)))
@@ -127,16 +133,18 @@ def train_stage2(data_loader, embedder, supervisor, generator):
         lr=learning_rate2
     )
 
+    scheduler = StepLR(optimizer, step_size=50, gamma=0.8)
+
     print('Start Training with Supervised Loss Only')
 
-    logger = trange(num_epochs, desc=f"Epoch: 0, Loss: 0")
+    logger = trange(stage2_epochs, desc=f"Epoch: 0, Loss: 0")
     for epoch in logger:
 
         training_loss = 0.0
 
         for _, inputs in enumerate(data_loader):
 
-            X = inputs[0].to(CUDA_DEVICES)
+            X = inputs.to(CUDA_DEVICES)
 
             optimizer.zero_grad()
 
@@ -144,6 +152,7 @@ def train_stage2(data_loader, embedder, supervisor, generator):
 
             H_hat_supervise = supervisor(H, None)
 
+            # Teacher forcing next output
             loss = criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
             loss.backward()
             optimizer.step()
@@ -151,6 +160,7 @@ def train_stage2(data_loader, embedder, supervisor, generator):
             training_loss = np.sqrt(loss.item())
 
         logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
+        scheduler.step()
 
     print('Finish Training with Supervised Loss Only')
 
@@ -187,8 +197,10 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
         lr=learning_rate4
     )
 
+    schedulerE = StepLR(optimizerE, step_size=1000, gamma=0.95)
+
     logger = trange(
-        num_epochs,  desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0")
+        stage3_epochs,  desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0")
     for epoch in logger:
 
         training_loss_G = 0.0
@@ -201,7 +213,7 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
         for inputs in data_loader:
             # Generator training (twice more than discriminator training)
             for _ in range(2):
-                X = inputs[0].to(CUDA_DEVICES)
+                X = inputs.to(CUDA_DEVICES)
 
                 optimizerG.zero_grad()
 
@@ -247,11 +259,6 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                 lossG.backward()
                 optimizerG.step()
 
-                training_loss_G = np.sqrt(lossG.item())
-                # training_loss_U = np.sqrt(loss_U.item())
-                # training_loss_S = np.sqrt(loss_S.item())
-                # training_loss_V = np.sqrt(loss_V.item())
-
                 # Train autoencoder
                 optimizerE.zero_grad()
 
@@ -273,7 +280,11 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                 lossE.backward()
                 optimizerE.step()
 
-                training_loss_E0 = np.sqrt(lossE_0.item())
+            training_loss_E0 = np.sqrt(lossE_0.item())
+            training_loss_G = np.sqrt(lossG.item())
+            # training_loss_U = np.sqrt(loss_U.item())
+            # training_loss_S = np.sqrt(loss_S.item())
+            # training_loss_V = np.sqrt(loss_V.item())
 
             # Discriminator training
 
@@ -304,18 +315,20 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                 with torch.backends.cudnn.flags(enabled=False):
                     lossD_gp = _gradient_penalty(
                         CUDA_DEVICES, discriminator, H, H_hat)
-                    lossD = lossD.add(lossD_gp)
+                lossD = lossD.add(lossD_gp)
 
             # Train discriminator (only when the discriminator does not work well)
             if lossD > 0.15:
                 lossD.backward()
                 optimizerD.step()
 
-            training_loss_D = lossD.item()
+        training_loss_D = lossD.item()
 
         logger.set_description(
             f"Epoch: {epoch}, E: {training_loss_E0:.4f}, G: {training_loss_G:.4f}, D: {training_loss_D:.4f}"
         )
+
+        schedulerE.step()
 
         # # Print multiple checkpoints
         # if epoch % (np.round(num_epochs / 5)) == 0:
@@ -348,7 +361,7 @@ if __name__ == '__main__':
     print("[train] n_features: {}".format(n_features))
     print("[train] hidden size: {}".format(hidden_size))
     print("[train] num_layers: {}".format(num_layers))
-    print("[train] num_epochs: {}".format(num_epochs))
+    print("[train] num_epochs: {}".format(stage3_epochs))
     print("[train] batch_size: {}".format(batch_size))
     print("[train] distance function: {}".format(dis_func))
     print("[train] adversarial loss function: {}".format(uloss_func))
@@ -371,7 +384,6 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=n_features,
         num_layers=num_layers,
-        activate_function=nn.Sigmoid()
     )
 
     generator = Generator(
@@ -381,7 +393,7 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=hidden_size,
         num_layers=num_layers,
-        activate_function=nn.Tanh()
+        activate_function=nn.Sigmoid()
     )
 
     supervisor = Supervisor(
@@ -402,6 +414,7 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=1,
         num_layers=num_layers,
+        # activate_function=nn.Sigmoid()
     )
 
     embedder = embedder.to(CUDA_DEVICES)
