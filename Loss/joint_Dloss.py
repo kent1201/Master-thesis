@@ -25,9 +25,10 @@ class JointDloss(nn.Module):
             loss_fake_e = self.BCEWithLogitsLoss(
                 Y_fake_e, torch.zeros_like(Y_fake_e))
         elif self.mode == "wgan":
-            loss_real = -(Y_real.mean())
+            loss_real = Y_real.mean()
             loss_fake = Y_fake.mean()
             loss_fake_e = Y_fake_e.mean()
+            return loss_real, loss_fake, loss_fake_e
         elif self.mode == "hinge":
             loss_real = torch.mean(
                 self.relu(torch.sub(torch.ones_like(Y_real), Y_real)))

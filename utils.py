@@ -20,18 +20,33 @@ random.seed(manualSeed)
 torch.manual_seed(manualSeed)
 
 
-def random_generator(batch_size, seq_len, dim):
+def random_generator(batch_size, max_seq_len, z_dim, T_mb):
+    """Random vector generation.
 
-    # Z = torch.zeros(batch_size, seq_len, dim)
+    Args:
+    - batch_size: size of the random vector
+    - z_dim: dimension of random vector
+    - T_mb: time information for the random vector
+    - max_seq_len: maximum sequence length
+
+    Returns:
+    - Z_mb: generated random vector
+    """
 
     # for i in range(batch_size):
     #     temp = torch.rand(seq_len, dim)
     #     temp = torch.add(torch.mul(temp, 2.0), -1.0)
     #     Z[i, :, :] = temp.detach().clone()
-
-    Z = torch.rand(batch_size, seq_len, dim)
     # Z = torch.add(torch.mul(temp, 2.0), -1.0)
-    return Z
+
+    Z_mb = list()
+    for i in range(batch_size):
+        temp = np.zeros([max_seq_len, z_dim])
+        temp_Z = np.random.uniform(0., 1, [T_mb[i], z_dim])
+        temp[:T_mb[i], :] = temp_Z
+        Z_mb.append(temp_Z)
+    Z_mb = torch.FloatTensor(Z_mb)
+    return Z_mb
 
 
 def train_test_dataloader(data_set, mode='test'):
@@ -50,29 +65,52 @@ def train_test_dataloader(data_set, mode='test'):
     return train_data_loader, test_data_loader
 
 
-def _gradient_penalty(CUDA_DEVICES, discriminator, real_data, generated_data, gp_weight=10):
+def _gradient_penalty(CUDA_DEVICES, discriminator, real_data, generated_data, data_time, gp_weight=10):
 
-    # Tensor = torch.cuda.FloatTensor if CUDA_DEVICES else torch.FloatTensor
-    alpha = torch.rand(real_data.size(0), 1, 1).to(CUDA_DEVICES)
-    # alpha = Tensor(np.random.random(
-    #     (real_data.size(0), 1, 1))).to(CUDA_DEVICES)
-    interpolates = (alpha * real_data + ((1 - alpha) *
-                                         generated_data)).requires_grad_(True)
-    d_interpolates = discriminator(interpolates, None)
-    # fake = Variable(Tensor(d_interpolates.size()).fill_(
-    # 1.0).to(CUDA_DEVICES), requires_grad=False)
-    fake = Variable(torch.ones_like(d_interpolates).to(
-        CUDA_DEVICES), requires_grad=False)
-    gradients = torch_grad(
-        outputs=d_interpolates,
-        inputs=interpolates,
-        grad_outputs=fake,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
-    gradients = gradients.reshape(gradients.size(0), -1)
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1)**2).mean()
+    batch_size = real_data.size()[0]
+    # Calculate interpolation
+    alpha = torch.rand(batch_size, 1, 1)
+    alpha = alpha.expand_as(real_data)
+    alpha = alpha.to(CUDA_DEVICES)
+    interpolated = alpha * real_data.data + (1 - alpha) * generated_data.data
+    interpolated = Variable(interpolated, requires_grad=True)
+    interpolated = interpolated.to(CUDA_DEVICES)
+
+    # Calculate probability of interpolated examples
+    prob_interpolated = discriminator(interpolated, data_time)
+
+    # Calculate gradients of probabilities with respect to examples
+    gradients = torch_grad(outputs=prob_interpolated, inputs=interpolated,
+                           grad_outputs=torch.ones(
+                               prob_interpolated.size()).to(CUDA_DEVICES),
+                           create_graph=True, retain_graph=True)[0]
+
+    gradients = gradients.view(batch_size, -1)
+    gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+    gradient_penalty = gp_weight * ((gradients_norm - 1) ** 2).mean()
+
+    # # Tensor = torch.cuda.FloatTensor if CUDA_DEVICES else torch.FloatTensor
+    # alpha = torch.rand(real_data.size(0), 1, 1).to(CUDA_DEVICES)
+    # # alpha = Tensor(np.random.random(
+    # #     (real_data.size(0), 1, 1))).to(CUDA_DEVICES)
+    # interpolates = (alpha * real_data + ((1 - alpha) *
+    #                                      generated_data)).requires_grad_(True)
+    # d_interpolates = discriminator(interpolates, data_time)
+    # # fake = Variable(Tensor(d_interpolates.size()).fill_(
+    # # 1.0).to(CUDA_DEVICES), requires_grad=False)
+    # fake = Variable(torch.ones_like(d_interpolates).to(
+    #     CUDA_DEVICES), requires_grad=False)
+    # gradients = torch_grad(
+    #     outputs=d_interpolates,
+    #     inputs=interpolates,
+    #     grad_outputs=fake,
+    #     create_graph=True,
+    #     retain_graph=True,
+    #     only_inputs=True,
+    # )[0]
+    # gradients = gradients.reshape(gradients.size(0), -1)
+    # gradient_penalty = ((gradients.norm(2, dim=1) - 1)**2).mean()
+
     return gradient_penalty
 
 

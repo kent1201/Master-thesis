@@ -3,9 +3,12 @@ import numpy as np
 import math
 import configparser
 import torch
+import torch.nn.functional as F
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
+
+PADDING_VALUE = config.getfloat('default', 'padding_value')
 
 
 def StandardScaler(data):
@@ -36,11 +39,11 @@ def MinMaxScaler1(data):
     """
     min_val = np.min(data, 0)
     max_val = np.max(data, 0)
-    numerator = data - min_val
-    denominator = max_val - min_val
+    numerator = data - np.min(data, 0)
+    denominator = np.max(data, 0) - np.min(data, 0)
     norm_data = numerator / (denominator + 1e-7)
     # rescale to (-1, 1)
-    # norm_data = 2 * norm_data - 1
+    # norm_data = 2 * norm_data - 1A
     return norm_data, min_val, max_val
 
 
@@ -62,6 +65,7 @@ def MinMaxScaler2(data):
     norm_data = data / (max_val + 1e-7)
     # [test] min-max to (-1, 1)
     # norm_data = 2 * norm_data - 1
+    # print("MinMaxScaler2: min_val:{} \t, max_val: {}".format(min_val, max_val))
 
     return norm_data, min_val, max_val
 
@@ -116,6 +120,25 @@ def ReMinMaxScaler1(data, min_val, max_val):
     return re_data
 
 
+def extract_time(data):
+    """Returns Maximum sequence length and each sequence length.
+
+    Args:
+      - data: original data
+
+    Returns:
+      - time: extracted time information
+      - max_seq_len: maximum sequence length
+    """
+    time = list()
+    max_seq_len = 0
+    for i in range(len(data)):
+        max_seq_len = max(max_seq_len, len(data[i][:, 0]))
+        time.append(len(data[i][:, 0]))
+
+    return time, max_seq_len
+
+
 def path_preprocess(path):
 
     files_path = []
@@ -136,15 +159,20 @@ def path_preprocess(path):
     return files_path
 
 
-def data_preprocess(data, seq_len):
+def data_preprocess(data, seq_len, time_step):
 
     temp_data = data[::-1]
-    temp_data, min_val1, max_val1 = MinMaxScaler1(temp_data)
+    # EX: stock: (3685, 6)
+    temp_data, _, _ = MinMaxScaler1(temp_data)
     # Convert the normalized data into [batches, seq_len, dimension] with window slicing
-    batch_temp_data = batch_generation(temp_data, seq_len)
-    output_data, min_val2, max_val2 = MinMaxScaler2(batch_temp_data)
+    # EX: stock: (3661, 24, 6)
+    batch_temp_data = batch_generation(temp_data, seq_len, time_step)
+    # ori_time: [24, 24, ..., 24](3661)。max_seq_len=24
+    ori_time, max_seq_len = extract_time(batch_temp_data)
+    # EX: stock: (3661, 24, 6)
+    output_data, _, _ = MinMaxScaler2(batch_temp_data)
 
-    return output_data, min_val1, max_val1, min_val2, max_val2
+    return output_data, ori_time, max_seq_len
 
 
 def data_postprocess(data, min_val1, max_val1):
@@ -154,12 +182,25 @@ def data_postprocess(data, min_val1, max_val1):
     return output_data
 
 
-def batch_generation(data, seq_len):
+def batch_generation(ori_data, seq_len, time_step):
 
-    no = len(data)
-    dim = data.shape[-1]
-    output = []
-    for i in range(0, no-seq_len):
-        if i+seq_len < no:
-            output.append(data[i:i+seq_len, :])
-    return output
+    # no = len(data)
+    # dim = data.shape[-1]
+    # output = []
+    # for i in range(0, no-seq_len):
+    #     if i+seq_len < no:
+    #         output.append(data[i:i+seq_len, :])
+
+    #  TimeGAN original version
+    temp_data = []
+    for i in range(0, len(ori_data) - seq_len, time_step):
+        _x = ori_data[i:i + seq_len]
+        temp_data.append(_x)
+
+    # Mix the datasets (to make it similar to i.i.d)
+    idx = np.random.permutation(len(temp_data))
+    data = []
+    for i in range(len(temp_data)):
+        data.append(temp_data[idx[i]])
+
+    return data

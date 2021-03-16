@@ -1,7 +1,7 @@
 1. 初始 learning rate: 0.001 => 0.0001
-2. 修正 MinMaxScalar1, 從 batch normalization -> all data init normalization (MinMaxScalar2 仍為 batch normalization)
+2. 修正 MinMaxScalar1, MinMaxScalar2 從 batch normalization -> all data init normalization
 3. 更新 Timedataset.py, Time_generate_data.py, Time_data_visualization.py 讀取方式，現在無需使用 Dataset 讀取方式即可 load data
-4. 更新 Time_generate_data.py save data 方式，現在可以儲存相近 (+-1) 筆數的資料了。新增 iteration，可自由決定生產幾倍資料。
+4. 新增 iteration，可自由決定生產幾倍資料。
 5. 更新 Time_data_visualization.py: 現在 data preprocess 只使用 MinMaxScalar1
 
 重新執行 stock data, energy data 資料

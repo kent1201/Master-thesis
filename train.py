@@ -55,6 +55,7 @@ generator_name = config.get('default', 'generator_name')
 supervisor_name = config.get('default', 'supervisor_name')
 discriminator_name = config.get('default', 'discriminator_name')
 module_name = config.get('default', 'module_name')
+PADDING_VALUE = config.getfloat('default', 'padding_value')
 
 # 1. Embedding network training
 
@@ -85,13 +86,14 @@ def train_stage1(data_loader, embedder, recovery):
 
         training_loss = 0.0
 
-        for _, inputs in enumerate(data_loader):
+        for _, (X_mb, T_mb) in enumerate(data_loader):
 
-            X = inputs.to(CUDA_DEVICES)
+            X = X_mb.to(CUDA_DEVICES)
+            T = T_mb.to(CUDA_DEVICES)
 
             optimizer.zero_grad()
 
-            H = embedder(X, None)
+            H = embedder(X, T)
             # For attention
             if module_name == "self-attn":
                 decoder_inputs = torch.zeros_like(X)
@@ -99,7 +101,7 @@ def train_stage1(data_loader, embedder, recovery):
                 outputs = recovery(H, decoder_inputs)
             # For GRU
             else:
-                outputs = recovery(H, None)
+                outputs = recovery(H, T)
 
             E_loss_T0, E_loss0 = criterion(outputs, X)
             E_loss0.backward()
@@ -133,7 +135,7 @@ def train_stage2(data_loader, embedder, supervisor, generator):
         lr=learning_rate2
     )
 
-    scheduler = StepLR(optimizer, step_size=50, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=100, gamma=0.8)
 
     print('Start Training with Supervised Loss Only')
 
@@ -142,15 +144,16 @@ def train_stage2(data_loader, embedder, supervisor, generator):
 
         training_loss = 0.0
 
-        for _, inputs in enumerate(data_loader):
+        for _, (X_mb, T_mb) in enumerate(data_loader):
 
-            X = inputs.to(CUDA_DEVICES)
+            X = X_mb.to(CUDA_DEVICES)
+            T = T_mb.to(CUDA_DEVICES)
 
             optimizer.zero_grad()
 
-            H = embedder(X, None)
+            H = embedder(X, T)
 
-            H_hat_supervise = supervisor(H, None)
+            H_hat_supervise = supervisor(H, T)
 
             # Teacher forcing next output
             loss = criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
@@ -197,10 +200,14 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
         lr=learning_rate4
     )
 
-    schedulerE = StepLR(optimizerE, step_size=1000, gamma=0.95)
+    schedulerE = StepLR(optimizerE, step_size=200, gamma=0.95)
 
-    logger = trange(
-        stage3_epochs,  desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0")
+    if uloss_func == "wgan":
+        logger = trange(
+            stage3_epochs,  desc=f"Epoch: 0, E_loss: 0, wasserstein_loss: 0")
+    else:
+        logger = trange(
+            stage3_epochs,  desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0")
     for epoch in logger:
 
         training_loss_G = 0.0
@@ -209,22 +216,30 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
         # training_loss_V = 0.0
         training_loss_E0 = 0.0
         training_loss_D = 0.0
+        wasserstein_loss = 0.0
 
-        for inputs in data_loader:
+        for X_mb, T_mb in data_loader:
+
             # Generator training (twice more than discriminator training)
+
+            for p in discriminator.parameters():
+                p.requires_grad = False  # to avoid computation
+
             for _ in range(2):
-                X = inputs.to(CUDA_DEVICES)
+
+                X = X_mb.to(CUDA_DEVICES)
+                T = T_mb.to(CUDA_DEVICES)
 
                 optimizerG.zero_grad()
 
                 # Train generator
                 # Generate random data
                 z_batch_size, z_seq_len, z_dim = X.shape
-                Z = random_generator(z_batch_size, z_seq_len, z_dim)
+                Z = random_generator(z_batch_size, z_seq_len, z_dim, T_mb)
                 Z = Z.to(CUDA_DEVICES)
 
                 # Supervised Forward Pass
-                H = embedder(X, None)
+                H = embedder(X, T)
                 # For attention
                 if module_name == "self-attn":
                     decoder_inputs = torch.zeros_like(X)
@@ -232,12 +247,12 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                     X_tilde = recovery(H, decoder_inputs)
                 # For GRU
                 else:
-                    H_hat_supervise = supervisor(H, None)
-                    X_tilde = recovery(H, None)
+                    H_hat_supervise = supervisor(H, T)
+                    X_tilde = recovery(H, T)
 
                 # Generator Forward Pass
-                E_hat = generator(Z, None)
-                H_hat = supervisor(E_hat, None)
+                E_hat = generator(Z, T)
+                H_hat = supervisor(E_hat, T)
 
                 # Synthetic data generated
                 # For attention
@@ -247,22 +262,23 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                     X_hat = recovery(H_hat, decoder_inputs)
                 # For GRU
                 else:
-                    X_hat = recovery(H_hat, None)
+                    X_hat = recovery(H_hat, T)
 
                 # Adversarial loss
-                Y_fake = discriminator(H_hat, None)
-                Y_fake_e = discriminator(E_hat, None)
+                Y_fake = discriminator(H_hat, T)
+                Y_fake_e = discriminator(E_hat, T)
 
                 lossG, loss_U, loss_S, loss_V = Gloss_criterion(
                     Y_fake, Y_fake_e, H[:, 1:, :], H_hat_supervise[:, :-1, :], X, X_hat)
 
                 lossG.backward()
+
                 optimizerG.step()
 
                 # Train autoencoder
                 optimizerE.zero_grad()
 
-                H = embedder(X, None)
+                H = embedder(X, T)
                 # For attention
                 if module_name == "self-attn":
                     decoder_inputs = torch.zeros_like(X)
@@ -270,9 +286,9 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                     X_tilde = recovery(H, decoder_inputs)
                 # For GRU
                 else:
-                    X_tilde = recovery(H, None)
+                    X_tilde = recovery(H, T)
 
-                H_hat_supervise = supervisor(H, None)
+                H_hat_supervise = supervisor(H, T)
 
                 lossE, lossE_0 = Eloss_criterion(
                     X_tilde, X, H[:, 1:, :], H_hat_supervise[:, :-1, :])
@@ -288,45 +304,63 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
 
             # Discriminator training
 
+            for p in discriminator.parameters():  # reset requires_grad
+                p.requires_grad = True  # they are set to False below in netG update
+
             optimizerD.zero_grad()
 
             # Train discriminator
             # Generate random data
             z_batch_size, z_seq_len, z_dim = X.shape
-            Z = random_generator(z_batch_size, z_seq_len, z_dim)
+            Z = random_generator(z_batch_size, z_seq_len, z_dim, T_mb)
             Z = Z.to(CUDA_DEVICES)
 
             # latent code forward
-            H = embedder(X, None).detach()
-            H_hat = supervisor(E_hat, None).detach()
-            E_hat = generator(Z, None).detach()
+            H = embedder(X, T).detach()
+            H_hat = supervisor(E_hat, T).detach()
+            E_hat = generator(Z, T).detach()
 
             # Forward Pass
             # Encoded original data
-            Y_real = discriminator(H, None)
+            Y_real = discriminator(H, T)
             # Output of supervisor
-            Y_fake = discriminator(H_hat, None)
+            Y_fake = discriminator(H_hat, T)
             Y_fake_e = discriminator(
-                E_hat, None)   # Output of generator
+                E_hat, T)   # Output of generator
 
-            # Adversarial loss
-            lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
             if uloss_func == "wgan":
+                # Adversarial loss
+                lossD_real, lossD_fake, lossD_fake_e = Dloss_criterion(
+                    Y_real, Y_fake, Y_fake_e)
+                wasserstein_dis = lossD_real - \
+                    0.5 * (lossD_fake + lossD_fake_e)
                 with torch.backends.cudnn.flags(enabled=False):
                     lossD_gp = _gradient_penalty(
-                        CUDA_DEVICES, discriminator, H, H_hat)
-                lossD = lossD.add(lossD_gp)
-
-            # Train discriminator (only when the discriminator does not work well)
-            if lossD > 0.15:
+                        CUDA_DEVICES, discriminator, H, H_hat, T)
+                lossD = lossD_fake + lossD_fake_e - lossD_real + lossD_gp
                 lossD.backward()
                 optimizerD.step()
+            else:
+                # Adversarial loss
+                lossD = Dloss_criterion(Y_real, Y_fake, Y_fake_e)
+                # Train discriminator (only when the discriminator does not work well)
+                if lossD > 0.15:
+                    lossD.backward()
+                    optimizerD.step()
 
-        training_loss_D = lossD.item()
+        if uloss_func == "wgan":
+            wasserstein_loss = wasserstein_dis.item()
+        else:
+            training_loss_D = lossD.item()
 
-        logger.set_description(
-            f"Epoch: {epoch}, E: {training_loss_E0:.4f}, G: {training_loss_G:.4f}, D: {training_loss_D:.4f}"
-        )
+        if uloss_func == "wgan":
+            logger.set_description(
+                f"Epoch: {epoch}, E: {training_loss_E0:.4f}, wasserstein_loss: {wasserstein_loss:.4f}"
+            )
+        else:
+            logger.set_description(
+                f"Epoch: {epoch}, E: {training_loss_E0:.4f}, G: {training_loss_G:.4f}, D: {training_loss_D:.4f}"
+            )
 
         schedulerE.step()
 
@@ -366,6 +400,14 @@ if __name__ == '__main__':
     print("[train] distance function: {}".format(dis_func))
     print("[train] adversarial loss function: {}".format(uloss_func))
 
+    # Dataset
+    Data_set = TimeSeriesDataset(
+        root_dir=dataset_dir, seq_len=seq_len, transform=None)
+    Data_loader = DataLoader(
+        dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=1)
+
+    Max_Seq_len = Data_set.max_seq_len
+
     # models
     embedder = Embedder(
         module=module_name,
@@ -374,7 +416,9 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=hidden_size,
         num_layers=num_layers,
-        activate_function=nn.Sigmoid()
+        activate_function=nn.Sigmoid(),
+        padding_value=PADDING_VALUE,
+        max_seq_len=Max_Seq_len
     )
 
     recovery = Recovery(
@@ -384,6 +428,8 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=n_features,
         num_layers=num_layers,
+        padding_value=PADDING_VALUE,
+        max_seq_len=Max_Seq_len
     )
 
     generator = Generator(
@@ -393,7 +439,9 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=hidden_size,
         num_layers=num_layers,
-        activate_function=nn.Sigmoid()
+        activate_function=nn.Sigmoid(),
+        padding_value=PADDING_VALUE,
+        max_seq_len=Max_Seq_len
     )
 
     supervisor = Supervisor(
@@ -404,7 +452,9 @@ if __name__ == '__main__':
         output_dim=hidden_size,
         # [Supervisor] num_layers must less(-1) than other component, embedder
         num_layers=num_layers - 1,
-        activate_function=nn.Sigmoid()
+        activate_function=nn.Sigmoid(),
+        padding_value=PADDING_VALUE,
+        max_seq_len=Max_Seq_len
     )
 
     discriminator = Discriminator(
@@ -414,7 +464,9 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=1,
         num_layers=num_layers,
-        # activate_function=nn.Sigmoid()
+        activate_function=nn.Sigmoid(),
+        padding_value=PADDING_VALUE,
+        max_seq_len=Max_Seq_len
     )
 
     embedder = embedder.to(CUDA_DEVICES)
@@ -422,12 +474,6 @@ if __name__ == '__main__':
     generator = generator.to(CUDA_DEVICES)
     supervisor = supervisor.to(CUDA_DEVICES)
     discriminator = discriminator.to(CUDA_DEVICES)
-
-    # Dataset
-    Data_set = TimeSeriesDataset(
-        root_dir=dataset_dir, transform=None, seq_len=seq_len)
-    Data_loader = DataLoader(
-        dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=1)
 
     train_stage1(Data_loader, embedder, recovery)
     train_stage2(Data_loader, embedder, supervisor, generator)

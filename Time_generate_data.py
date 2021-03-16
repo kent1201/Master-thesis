@@ -10,7 +10,7 @@ from torchvision import transforms
 import numpy as np
 from Timedataset import TimeSeriesDataset
 from utils import random_generator
-from dataset_preprocess import data_preprocess, ReMinMaxScaler2, data_postprocess
+from dataset_preprocess import MinMaxScaler1, batch_generation, extract_time, MinMaxScaler2, ReMinMaxScaler2, data_postprocess
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
@@ -43,13 +43,11 @@ times_iteration = config.getint('generate_data', 'iteration')
 
 def concat_data(data, data_list):
     # concat each batch data into a alist
-    for i in range(0, data.size(0)):
-        temp_data = data[i]
-        final_data = temp_data.data.numpy()
+    for i in range(0, len(data)):
         if len(data_list):
-            data_list = np.concatenate((data_list, final_data), axis=0)
+            data_list = np.concatenate((data_list, data[i]), axis=0)
         else:
-            data_list = final_data
+            data_list = data[i]
     return data_list
 
 
@@ -78,13 +76,15 @@ def Generate_data():
     real_data = np.loadtxt(dataset_dir, delimiter=",", skiprows=0)
 
     # get real data min(max) value
-    _, min_val1, max_val1, min_val2, max_val2 = data_preprocess(
-        real_data, seq_len)
+    real_data, min_val1, max_val1 = MinMaxScaler1(real_data)
+    batch_real_data = batch_generation(real_data, seq_len, 1)
+    ori_time, _ = extract_time(batch_real_data)
+    _, min_val2, max_val2 = MinMaxScaler2(batch_real_data)
 
     # To get same amount of data
     data_seq_len, dim = np.asarray(real_data).shape
 
-    no = data_seq_len // seq_len + 1
+    no = len(batch_real_data)
 
     # load model
     generator = torch.load(model_path + '/' + generator_name)
@@ -101,41 +101,49 @@ def Generate_data():
     recovery.eval()
 
     data_names = 1
-    generated_data = []
+    generated_data = list()
+    generated_data_list = list()
 
     # times_iteration: How many times of the data's amount we want
     for _ in range(0, times_iteration):
 
-        # generate noize
-        Z = random_generator(no, seq_len, dim)
-        Z = Z.to(CUDA_DEVICES)
+        with torch.no_grad():
 
-        # generate synthetic data
-        E_hat = generator(Z, None)
-        H_hat = supervisor(E_hat, None)
-        # For attention
-        if module_name == "self-attn":
-            decoder_inputs = torch.zeros_like(Z)
-            decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
-            X_hat = recovery(H_hat, decoder_inputs)
-        # For GRU
-        else:
-            X_hat = recovery(H_hat, None)
+            # generate noize
+            Z = random_generator(no, seq_len, dim, ori_time)
+            Z = Z.to(CUDA_DEVICES)
 
-        X_hat = X_hat.cpu().detach()
+            # generate synthetic data
+            E_hat = generator(Z, ori_time)
+            H_hat = supervisor(E_hat, ori_time)
+            # For attention
+            if module_name == "self-attn":
+                decoder_inputs = torch.zeros_like(Z)
+                decoder_inputs = decoder_inputs.to(CUDA_DEVICES)
+                X_hat = recovery(H_hat, decoder_inputs)
+            # For GRU
+            else:
+                X_hat = recovery(H_hat, ori_time)
 
-        re_X_hat = ReMinMaxScaler2(X_hat, min_val2, max_val2)
+        X_hat = X_hat.cpu().detach().numpy()
 
-        # Make all batch data into a list
-        generated_data = concat_data(re_X_hat, generated_data)
+        for i in range(no):
+            temp = X_hat[i, :ori_time[i], :]
+            generated_data.append(temp)
+
+    generated_data = generated_data * max_val2
+    generated_data = generated_data + min_val2
+
+    # Make all batch data into a list
+    generated_data_list = concat_data(generated_data, generated_data_list)
 
     # Renormalized the synthetic normalized data
-    generated_data = data_postprocess(
-        generated_data, min_val1, max_val1)
+    generated_data_list = data_postprocess(
+        generated_data_list, min_val1, max_val1)
 
     # Save the data
     data_names = Save_Data(
-        generated_data, save_dir_path, syntheitc_data_name)
+        generated_data_list, save_dir_path, syntheitc_data_name)
 
 
 if __name__ == '__main__':

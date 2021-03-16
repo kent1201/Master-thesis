@@ -105,8 +105,8 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
         prep_data_final = np.concatenate((prep_data, prep_data_hat), axis=0)
 
         # TSNE anlaysis
-        tsne = TSNE(n_components=2, verbose=1, perplexity=45, n_iter=100000,
-                    random_state=0, init='pca', method='barnes_hut', angle=0.5)
+        # random_state=0, init='pca', method='barnes_hut', angle=0.5)
+        tsne = TSNE(n_components=2, verbose=1, perplexity=45, n_iter=300)
         tsne_results = tsne.fit_transform(prep_data_final)
 
         # Plotting
@@ -131,12 +131,14 @@ if __name__ == '__main__':
     real_data = np.loadtxt(real_dataset_dir, delimiter=",", skiprows=0)
     real_data = real_data[::-1]
     real_data, _, _ = MinMaxScaler1(real_data)
-    batch_real_data = batch_generation(real_data, seq_len)
+    batch_real_data = batch_generation(real_data, seq_len, 1)
 
     synthetic_data = np.loadtxt(
         synthetic_dataset_dir, delimiter=",", skiprows=0)
+    synthetic_data = synthetic_data[::-1]
     synthetic_data, _, _ = MinMaxScaler1(synthetic_data)
-    batch_synthetic_data = batch_generation(synthetic_data, seq_len)
+    batch_synthetic_data = []
+    batch_synthetic_data = batch_generation(synthetic_data, seq_len, seq_len)
 
     if not os.path.exists(pic_path):
         os.makedirs(pic_path)

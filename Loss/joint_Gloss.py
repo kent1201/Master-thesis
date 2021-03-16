@@ -46,9 +46,9 @@ class JointGloss(nn.Module):
             loss_U_e = -(Y_fake_e.mean())
 
         loss_U = torch.add(loss_U, torch.mul(self.gamma, loss_U_e))
-
         loss_S = torch.mul(torch.sqrt(loss_S), 100)
-        loss = loss_U.add(loss_S).add(torch.mul(loss_V, 100))
+        loss_V = torch.mul(loss_V, 100)
+        loss = loss_U.add(loss_S).add(loss_V)
         loss = torch.add(loss, 1e-7)
 
         return loss, loss_U, loss_S, loss_V

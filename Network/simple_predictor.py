@@ -3,7 +3,8 @@ import torch
 import torch.nn.functional as F
 
 class Simple_Predictor(nn.Module):
-  def __init__(self, time_stamp=81, input_size=27, hidden_dim=136, output_dim=27, num_layers=2):
+  def __init__(self, time_stamp=81, input_size=27, hidden_dim=136, output_dim=27,
+   num_layers=2, padding_value=-999.0, max_seq_len = 100):
     super(Simple_Predictor, self).__init__()
     self.input_size = input_size
     self.time_stamp = time_stamp
@@ -19,6 +20,8 @@ class Simple_Predictor(nn.Module):
     self.activate1 = nn.Tanh()
     self.activate2 = nn.Sigmoid()
     self.fc = nn.Linear(self.hidden_dim, self.output_dim)
+    self.padding_value = padding_value
+    self.max_seq_len = max_seq_len
 
     # Init weights
         # Default weights of TensorFlow is Xavier Uniform for W and 1 or 0 for b
@@ -41,10 +44,24 @@ class Simple_Predictor(nn.Module):
             elif 'bias' in name:
                 param.data.fill_(0)
 
-  def forward(self, X, H):
+  def forward(self, X, T):
     # Input X shape: (seq_len, batch_size, input_dim)
-    outputs1, _ = self.r_cell(X, H)
-    outputs2 = self.activate1(outputs1)
+    # outputs, _ = self.r_cell(X, T)
+    X_packed = torch.nn.utils.rnn.pack_padded_sequence(
+                input=X, 
+                lengths=T, 
+                batch_first=True, 
+                enforce_sorted=False
+    )
+    H_o, H_t = self.r_cell(X_packed)
+    # Pad RNN output back to sequence length
+    outputs, T = torch.nn.utils.rnn.pad_packed_sequence(
+        sequence=H_o, 
+        batch_first=True,
+        padding_value=self.padding_value,
+        total_length=self.max_seq_len
+    )
+    outputs2 = self.activate1(outputs)
     # Outputs shape: (seq_len, batch_size, input_dim)
     H = self.activate2(self.fc(outputs2[:, X.shape[1]-1, :]))
     return H

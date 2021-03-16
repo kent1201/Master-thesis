@@ -10,7 +10,8 @@ from Network.Self_Attention.layers import EncoderLayer
 
 
 class Supervisor(nn.Module):
-    def __init__(self, module='gru', time_stamp=82, input_size=24, hidden_dim=17, output_dim=24, num_layers=10, activate_function=nn.Tanh()):
+    def __init__(self, module='gru', time_stamp=82, input_size=24, hidden_dim=17, 
+    output_dim=24, num_layers=10, activate_function=nn.Tanh(), padding_value=-999.0, max_seq_len = 100):
         super(Supervisor, self).__init__()
 
         self.module = module
@@ -20,6 +21,8 @@ class Supervisor(nn.Module):
         self.num_layers = num_layers
         self.hidden_dim_layers = []
         self.output_dim = output_dim
+        self.padding_value = padding_value
+        self.max_seq_len = max_seq_len
 
         if self.module == 'gru':
             self.r_cell = nn.GRU(
@@ -90,7 +93,7 @@ class Supervisor(nn.Module):
                 elif 'bias' in name:
                     param.data.fill_(0)
 
-    def forward(self, X, H):
+    def forward(self, X, T):
 
         if self.module == 'tcn':
             # Input X shape: (batch_size, seq_len, input_dim)
@@ -109,8 +112,22 @@ class Supervisor(nn.Module):
             output = torch.transpose(enc_output, 0, 1)
             # Input X shape: (batch_size, seq_len, input_dim)
         else:
+            X_packed = torch.nn.utils.rnn.pack_padded_sequence(
+                input=X, 
+                lengths=T, 
+                batch_first=True, 
+                enforce_sorted=False
+            )
+            H_o, H_t = self.r_cell(X_packed)
+            # Pad RNN output back to sequence length
+            output, T = torch.nn.utils.rnn.pad_packed_sequence(
+                sequence=H_o, 
+                batch_first=True,
+                padding_value=self.padding_value,
+                total_length=self.max_seq_len
+            )
             # Inpu t X shape: (seq_len, batch_size, input_dim)
-            output, _ = self.r_cell(X, H)
+            # output, _ = self.r_cell(X, T)
             # Outputs shape: (seq_len, batch_size, input_dim)
 
         H = self.activate(self.fc(output))
