@@ -240,6 +240,7 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
 
                 # Supervised Forward Pass
                 H = embedder(X, T)
+                H_hat_supervise = supervisor(H, T)
                 # For attention
                 if module_name == "self-attn":
                     decoder_inputs = torch.zeros_like(X)
@@ -247,7 +248,6 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
                     X_tilde = recovery(H, decoder_inputs)
                 # For GRU
                 else:
-                    H_hat_supervise = supervisor(H, T)
                     X_tilde = recovery(H, T)
 
                 # Generator Forward Pass
@@ -302,7 +302,7 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
             # training_loss_S = np.sqrt(loss_S.item())
             # training_loss_V = np.sqrt(loss_V.item())
 
-            # Discriminator training
+            ## Discriminator training
 
             for p in discriminator.parameters():  # reset requires_grad
                 p.requires_grad = True  # they are set to False below in netG update
@@ -428,6 +428,8 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=n_features,
         num_layers=num_layers,
+        # Only for attention
+        activate_function=nn.Sigmoid(),
         padding_value=PADDING_VALUE,
         max_seq_len=Max_Seq_len
     )
@@ -452,7 +454,7 @@ if __name__ == '__main__':
         output_dim=hidden_size,
         # [Supervisor] num_layers must less(-1) than other component, embedder
         num_layers=num_layers - 1,
-        activate_function=nn.Sigmoid(),
+        # activate_function=nn.Sigmoid(),
         padding_value=PADDING_VALUE,
         max_seq_len=Max_Seq_len
     )
@@ -485,3 +487,5 @@ if __name__ == '__main__':
     torch.save(generator, f'{output_dir+generator_name}')
     torch.save(supervisor, f'{output_dir+supervisor_name}')
     torch.save(discriminator, f'{output_dir+discriminator_name}')
+
+    print('Finish Saving Models.')

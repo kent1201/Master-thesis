@@ -58,9 +58,9 @@ def train_test_dataloader(data_set, mode='test'):
         data_set, [train_dataset_size, test_dataset_size])
 
     train_data_loader = DataLoader(dataset=train_dataset, batch_size=config.getint(
-        mode, 'batch_size'), shuffle=False, num_workers=1)
+        mode, 'batch_size'), shuffle=True, num_workers=1)
     test_data_loader = DataLoader(dataset=test_dataset, batch_size=config.getint(
-        mode, 'batch_size'), shuffle=False, num_workers=1)
+        mode, 'batch_size'), shuffle=True, num_workers=1)
 
     return train_data_loader, test_data_loader
 

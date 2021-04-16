@@ -197,10 +197,17 @@ def batch_generation(ori_data, seq_len, time_step):
         _x = ori_data[i:i + seq_len]
         temp_data.append(_x)
 
-    # Mix the datasets (to make it similar to i.i.d)
-    idx = np.random.permutation(len(temp_data))
     data = []
+    
+    # Mix the datasets (to make it similar to i.i.d)
+    # idx = np.random.permutation(len(temp_data))
+    # random append batch
+    # for i in range(len(temp_data)):
+    #     data.append(temp_data[idx[i]])
+
+
+    # append batch sequentially
     for i in range(len(temp_data)):
-        data.append(temp_data[idx[i]])
+        data.append(temp_data[i])
 
     return data

@@ -13,7 +13,6 @@ import configparser
 import os
 from dataset_preprocess import MinMaxScaler1, batch_generation
 
-
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
 
@@ -26,9 +25,7 @@ real_dataset_dir = config.get('GenTstVis', 'Dataset_path')
 pic_path = config.get('GenTstVis', 'pic_path') + '/' + config.get('GenTstVis',
                                                                   'date_dir') + '/' + config.get('GenTstVis', 'classification_dir')
 
-batch_size = config.getint('data_visualization', 'batch_size')
-
-seq_len = config.getint('train', 'seq_len')
+seq_len = config.getint('data_visualization', 'seq_len')
 
 pca_pic_name = config.get('data_visualization', 'pca_pic_name')
 
@@ -45,7 +42,8 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
     """
     # Analysis sample size (for faster computation)
     anal_sample_no = min([1000, len(ori_data)])
-    idx = np.random.permutation(len(ori_data))[:anal_sample_no]
+    # idx = np.random.permutation(len(ori_data))[:anal_sample_no]
+    idx = np.round(np.linspace(0, len(ori_data)-1, anal_sample_no)).astype(int)
 
     # Data preprocessing
     ori_data = np.asarray(ori_data)
@@ -53,6 +51,8 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
 
     ori_data = ori_data[idx]
     generated_data = generated_data[idx]
+    # ori_data = ori_data[:anal_sample_no]
+    # generated_data = generated_data[:anal_sample_no]
 
     no, seq_len, dim = ori_data.shape
 
@@ -129,16 +129,26 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
 if __name__ == '__main__':
 
     real_data = np.loadtxt(real_dataset_dir, delimiter=",", skiprows=0)
-    real_data = real_data[::-1]
+    # real_data = real_data[::-1]
     real_data, _, _ = MinMaxScaler1(real_data)
     batch_real_data = batch_generation(real_data, seq_len, 1)
+    batch_real_data = batch_real_data[:-1]
 
     synthetic_data = np.loadtxt(
         synthetic_dataset_dir, delimiter=",", skiprows=0)
-    synthetic_data = synthetic_data[::-1]
+    # synthetic_data = synthetic_data[::-1]
     synthetic_data, _, _ = MinMaxScaler1(synthetic_data)
     batch_synthetic_data = []
     batch_synthetic_data = batch_generation(synthetic_data, seq_len, seq_len)
+
+    min_batch_len = len(batch_synthetic_data) if len(batch_synthetic_data) < len(batch_real_data) else len(batch_real_data)
+
+    batch_synthetic_data = batch_synthetic_data[:min_batch_len]
+    batch_real_data = batch_real_data[:min_batch_len]
+
+    print("batch_synthetic_data: {}".format(len(batch_synthetic_data)))
+    print("batch_real_data: {}".format(len(batch_real_data)))
+    
 
     if not os.path.exists(pic_path):
         os.makedirs(pic_path)

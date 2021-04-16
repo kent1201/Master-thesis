@@ -17,8 +17,7 @@ class Simple_Predictor(nn.Module):
         num_layers = self.num_layers,
         batch_first = True
     )
-    self.activate1 = nn.Tanh()
-    self.activate2 = nn.Sigmoid()
+    self.activate = nn.Sigmoid()
     self.fc = nn.Linear(self.hidden_dim, self.output_dim)
     self.padding_value = padding_value
     self.max_seq_len = max_seq_len
@@ -61,10 +60,10 @@ class Simple_Predictor(nn.Module):
         padding_value=self.padding_value,
         total_length=self.max_seq_len
     )
-    outputs2 = self.activate1(outputs)
+    outputs2 = self.activate(self.fc(outputs))
     # Outputs shape: (seq_len, batch_size, input_dim)
-    H = self.activate2(self.fc(outputs2[:, X.shape[1]-1, :]))
-    return H
+    # H = self.activate2(self.fc(outputs2[:, X.shape[1]-1, :]))
+    return outputs2
 
 
 # gpu-used

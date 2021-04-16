@@ -60,8 +60,12 @@ class Recovery(nn.Module):
 
         elif self.module == 'self-attn':
             # d_k, d_v =  d_model / n_head
+            # d_k, d_v =  d_model / n_head
+            d_model, d_inner = self.input_size, self.input_size
+            n_head = d_model // 3
+            d_k, d_v = d_model // n_head, d_model // n_head
             self.r_cell = nn.ModuleList([DecoderLayer(
-                d_model=27, d_inner=27, n_head=9, d_k=3, d_v=3, dropout=0.1) for _ in range(6)])
+                d_model=d_model, d_inner=d_inner, n_head=n_head, d_k=d_k, d_v=d_v, dropout=0.1) for _ in range(6)])
 
         if self.module == 'bi-lstm':
             self.fc = nn.Linear(self.hidden_dim * 2, self.output_dim)
@@ -110,7 +114,7 @@ class Recovery(nn.Module):
             output = torch.transpose(output, 1, 2)
         elif self.module == 'self-attn':
             X = torch.unsqueeze(X, 1)
-            X = self.activate(self.conv2(self.conv1(X)))
+            X = self.conv2(self.activate(self.conv1(X)))
             # print("X2: {}".format(X.shape))
             X = torch.squeeze(X, 1)
             # print("X3: {}".format(X.shape))

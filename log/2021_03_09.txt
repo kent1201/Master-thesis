@@ -48,12 +48,12 @@ energy_gru_MSE_wgan_1000_100_28_120_5 (O)
 
 
 
-energy_gru_Soft_DTW_1000_128_100_28_120_5 (-)
+energy_gru_Soft_DTW_1000_128_100_28_120_5 (O)
 
 
 
 
-energy_gru_Soft_DTW_wgan_1000_128_100_28_120_5 (-)
+energy_gru_Soft_DTW_wgan_1000_128_100_28_120_5 (O)
 
 
 
@@ -64,7 +64,7 @@ energy_gru_MSE_hinge_1000_100_28_120_5 (O)
 
 
 
-energy_gru_Soft_DTW_hinge_1000_100_28_120_5
+energy_gru_Soft_DTW_hinge_1000_100_28_120_5 (O)
 
 
 

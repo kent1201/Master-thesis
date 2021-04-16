@@ -60,7 +60,7 @@ class Embedder(nn.Module):
             # d_k, d_v =  d_model / n_head
             d_model, d_inner = self.input_size, self.input_size
             n_head = d_model // 3
-            d_k, d_v = d_model // n_head
+            d_k, d_v = d_model // n_head, d_model // n_head
             self.r_cell = nn.ModuleList([EncoderLayer(
                 d_model=d_model, d_inner=d_inner, n_head=n_head, d_k=d_k, d_v=d_v, dropout=0.1) for _ in range(6)])
 

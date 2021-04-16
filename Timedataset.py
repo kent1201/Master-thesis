@@ -11,7 +11,7 @@ config.read('Configure.ini', encoding="utf-8")
 
 class TimeSeriesDataset(Dataset):
     # root_dir:資料集路徑
-    # mode:有'train'、'test'兩種，依據使用需要來選擇取用訓練資料集、測試資料集
+    # mode:有'real'、'synthetic'兩種，依據使用需要來選擇取用訓練資料集、測試資料集
     def __init__(self, root_dir, seq_len, mode='real', transform=None):
 
         self.root_dir = root_dir
