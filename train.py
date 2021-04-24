@@ -5,10 +5,11 @@ from datetime import date
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import MultiStepLR
 import numpy as np
 import itertools
 from tqdm import tqdm, trange
+import matplotlib.pyplot as plt
 from Network.embedder import Embedder
 from Network.recovery import Recovery
 from Network.supervisor import Supervisor
@@ -57,6 +58,16 @@ discriminator_name = config.get('default', 'discriminator_name')
 module_name = config.get('default', 'module_name')
 PADDING_VALUE = config.getfloat('default', 'padding_value')
 
+
+# save model path
+today = date.today()
+save_time = today.strftime("%d_%m_%Y")
+output_dir = config.get('train', 'model_path') + '/' + save_time + \
+    '/' + config.get('train', 'classification_dir') + '/'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+
 # 1. Embedding network training
 
 
@@ -76,7 +87,10 @@ def train_stage1(data_loader, embedder, recovery):
         lr=learning_rate1
     )
 
-    scheduler = StepLR(optimizer, step_size=100, gamma=0.8)
+    idx = np.round(np.linspace(0, stage1_epochs, 5)).astype(int)
+    idx = idx[1:-1]
+    # idx = np.insert(idx, 0, 15)
+    scheduler = MultiStepLR(optimizer, milestones=idx, gamma=0.9)
 
     print('Start Embedding Network Training')
 
@@ -135,7 +149,9 @@ def train_stage2(data_loader, embedder, supervisor, generator):
         lr=learning_rate2
     )
 
-    scheduler = StepLR(optimizer, step_size=100, gamma=0.8)
+    idx = np.round(np.linspace(0, stage2_epochs-1, 5)).astype(int)
+    idx = idx[1:-1]
+    scheduler = MultiStepLR(optimizer, milestones=idx, gamma=0.8)
 
     print('Start Training with Supervised Loss Only')
 
@@ -178,6 +194,12 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
     Eloss_criterion = JointEloss(dis_func=dis_func)
     Dloss_criterion = JointDloss(mode=uloss_func)
 
+    # recorded wasserstein distance curve
+    wasserstein_dis_list = []
+    embedding_loss_list = []
+    generator_loss_list = []
+    discriminator_loss_list = []
+    
     # model
     embedder.train()
     recovery.train()
@@ -200,7 +222,11 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
         lr=learning_rate4
     )
 
-    schedulerE = StepLR(optimizerE, step_size=200, gamma=0.95)
+    idx = np.round(np.linspace(0, stage3_epochs-1, 5)).astype(int)
+    idx = idx[1:-1]
+    schedulerE = MultiStepLR(optimizerE, milestones=idx, gamma=0.8)
+    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.8)
+    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.8)
 
     if uloss_func == "wgan":
         logger = trange(
@@ -298,6 +324,8 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
 
             training_loss_E0 = np.sqrt(lossE_0.item())
             training_loss_G = np.sqrt(lossG.item())
+            generator_loss_list.append(training_loss_G)
+            embedding_loss_list.append(training_loss_E0)
             # training_loss_U = np.sqrt(loss_U.item())
             # training_loss_S = np.sqrt(loss_S.item())
             # training_loss_V = np.sqrt(loss_V.item())
@@ -350,8 +378,10 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
 
         if uloss_func == "wgan":
             wasserstein_loss = wasserstein_dis.item()
+            wasserstein_dis_list.append(wasserstein_loss)
         else:
             training_loss_D = lossD.item()
+            discriminator_loss_list.append(training_loss_D)
 
         if uloss_func == "wgan":
             logger.set_description(
@@ -363,28 +393,44 @@ def train_stage3(data_loader, embedder, recovery, generator, supervisor, discrim
             )
 
         schedulerE.step()
+        schedulerD.step()
+        schedulerG.step()
 
-        # # Print multiple checkpoints
-        # if epoch % (np.round(num_epochs / 5)) == 0:
-        #   print('step: '+ str(epoch) + '/' + str(num_epochs) +
-        #         ', d_loss: ' + str(np.round(training_loss_D, 4)) +
-        #         ', g_loss_u: ' + str(np.round(training_loss_U, 4)) +
-        #         ', g_loss_s: ' + str(np.round(training_loss_S, 4)) +
-        #         ', g_loss_v: ' + str(np.round(training_loss_V, 4)) +
-        #         ', e_loss_t0: ' + str(np.round(training_loss_E0, 4)))
+        # Save multiple checkpoints
+        # if epoch % (np.round(int(stage3_epochs) // 5)) == 0:
+        if epoch % 10 == 0:
+            torch.save(embedder, f'{output_dir+str(epoch)+"_"+embedder_name}')
+            torch.save(recovery, f'{output_dir+str(epoch)+"_"+recovery_name}')
+            torch.save(generator, f'{output_dir+str(epoch)+"_"+generator_name}')
+            torch.save(supervisor, f'{output_dir+str(epoch)+"_"+supervisor_name}')
+            torch.save(discriminator, f'{output_dir+str(epoch)+"_"+discriminator_name}')
+    
+    if uloss_func == "wgan":
+        plt.plot(wasserstein_dis_list, color='brown', label="wasserstein")
+    else:
+        plt.plot(discriminator_loss_list, color='red', label="discriminative")
+        plt.plot(generator_loss_list, color='green', label="generative")
+    
+    plt.plot(embedding_loss_list, color='blue', label="embedding")
+    plt.title("Training loss")
+    plt.xlabel('Epoch')
+    plt.legend()
+    plt.savefig('./Loss_curve/training_loss_curve.png', bbox_inches='tight')
+    plt.close()
+
 
     print('Finish Joint Training')
 
 
 if __name__ == '__main__':
 
-    # save model path
-    today = date.today()
-    save_time = today.strftime("%d_%m_%Y")
-    output_dir = config.get('train', 'model_path') + '/' + save_time + \
-        '/' + config.get('train', 'classification_dir') + '/'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # # save model path
+    # today = date.today()
+    # save_time = today.strftime("%d_%m_%Y")
+    # output_dir = config.get('train', 'model_path') + '/' + save_time + \
+    #     '/' + config.get('train', 'classification_dir') + '/'
+    # if not os.path.exists(output_dir):
+    #     os.makedirs(output_dir)
 
     # Parameters
     print("CUDA DEVICE: {}".format(CUDA_DEVICES))
@@ -454,7 +500,7 @@ if __name__ == '__main__':
         output_dim=hidden_size,
         # [Supervisor] num_layers must less(-1) than other component, embedder
         num_layers=num_layers - 1,
-        # activate_function=nn.Sigmoid(),
+        activate_function=nn.Sigmoid(),
         padding_value=PADDING_VALUE,
         max_seq_len=Max_Seq_len
     )
@@ -466,7 +512,7 @@ if __name__ == '__main__':
         hidden_dim=hidden_size,
         output_dim=1,
         num_layers=num_layers,
-        activate_function=nn.Sigmoid(),
+        # activate_function=nn.Sigmoid(),
         padding_value=PADDING_VALUE,
         max_seq_len=Max_Seq_len
     )

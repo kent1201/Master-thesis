@@ -16,7 +16,7 @@ config.read('Configure.ini', encoding="utf-8")
 
 manualSeed = random.randint(1, 10000)  # use if you want new results
 # print("Random Seed: ", manualSeed)
-random.seed(manualSeed)
+random.seed(68)
 torch.manual_seed(manualSeed)
 
 
@@ -46,10 +46,11 @@ def random_generator(batch_size, max_seq_len, z_dim, T_mb):
         temp[:T_mb[i], :] = temp_Z
         Z_mb.append(temp_Z)
     Z_mb = torch.FloatTensor(Z_mb)
+    Z_mb = Variable(Z_mb)
     return Z_mb
 
 
-def train_test_dataloader(data_set, mode='test'):
+def train_test_divide(data_set, mode='test'):
 
     train_dataset_size = int(config.getfloat(
         mode, 'trainset_percentage') * len(data_set))
@@ -57,12 +58,12 @@ def train_test_dataloader(data_set, mode='test'):
     train_dataset, test_dataset = torch.utils.data.random_split(
         data_set, [train_dataset_size, test_dataset_size])
 
-    train_data_loader = DataLoader(dataset=train_dataset, batch_size=config.getint(
-        mode, 'batch_size'), shuffle=True, num_workers=1)
-    test_data_loader = DataLoader(dataset=test_dataset, batch_size=config.getint(
-        mode, 'batch_size'), shuffle=True, num_workers=1)
+    # train_data_loader = DataLoader(dataset=train_dataset, batch_size=config.getint(
+    #     mode, 'batch_size'), shuffle=True, num_workers=1)
+    # test_data_loader = DataLoader(dataset=test_dataset, batch_size=config.getint(
+    #     mode, 'batch_size'), shuffle=True, num_workers=1)
 
-    return train_data_loader, test_data_loader
+    return train_dataset, test_dataset
 
 
 def _gradient_penalty(CUDA_DEVICES, discriminator, real_data, generated_data, data_time, gp_weight=10):

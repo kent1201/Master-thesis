@@ -60,9 +60,10 @@ class Simple_Discriminator(nn.Module):
         padding_value=self.padding_value,
         total_length=self.max_seq_len
     )
-    outputs = self.activate(self.fc(temp_outputs))
+    logit_output = self.fc(temp_outputs)
+    outputs = self.activate(logit_output)
     # Outputs shape: (seq_len, batch_size, input_dim)
-    return outputs
+    return logit_output, outputs
 
 
 # gpu-used

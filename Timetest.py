@@ -1,11 +1,13 @@
 import math
-import torch
-import torch.nn as nn
 import configparser
 import os
 import pandas as pd
 from datetime import date
+from Timedataset import TimeSeriesDataset
+import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset
 from torchvision import transforms
 import numpy as np
 from tqdm import tqdm, trange
@@ -13,8 +15,8 @@ from Network.simple_discriminator import Simple_Discriminator
 from Network.simple_predictor import Simple_Predictor
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_absolute_error
-from Timedataset import TimeSeriesDataset
-from utils import train_test_dataloader
+
+from utils import train_test_divide
 import matplotlib.pyplot as plt
 
 config = configparser.ConfigParser()
@@ -92,17 +94,16 @@ def Discriminative(model, real_train_data_loader, real_test_data_loader, synthet
             real_inputs = real_inputs.to(CUDA_DEVICES)
             real_time = real_time.to(CUDA_DEVICES)
 
-            real_outputs = model(real_inputs, real_time)
-            fake_outputs = model(fake_inputs, fake_time)
+            real_logit_output, real_output = model(real_inputs, real_time)
+            fake_logit_output, fake_output = model(fake_inputs, fake_time)
 
-            fake_label = torch.zeros_like(fake_outputs)
-            real_label = torch.ones_like(real_outputs)
+            fake_label = torch.zeros_like(fake_logit_output)
+            real_label = torch.ones_like(real_logit_output)
 
-            outputs = torch.cat((real_outputs, fake_outputs), 0)
+            d_loss_real = critertion(real_logit_output, real_label)
+            d_loss_fake = critertion(fake_logit_output, fake_label)
 
-            labels = torch.cat((real_label, fake_label), 0)
-
-            D_loss = critertion(outputs, labels)
+            D_loss = d_loss_real + d_loss_fake
 
             D_loss.backward()
             optimizer.step()
@@ -129,6 +130,8 @@ def Discriminative(model, real_train_data_loader, real_test_data_loader, synthet
     synthetic_test_data_loader_iterator = iter(synthetic_test_data_loader)
     correct_results_sum = 0
     results_sum = 0
+    y_output_final = []
+    y_label_final = []
 
     with torch.no_grad():
 
@@ -144,27 +147,38 @@ def Discriminative(model, real_train_data_loader, real_test_data_loader, synthet
             real_inputs = real_inputs.to(CUDA_DEVICES)
             real_time = real_time.to(CUDA_DEVICES)
 
-            real_output = model(real_inputs, real_time)
-            fake_output = model(fake_inputs, fake_time)
+            real_logit_output, real_output = model(real_inputs, real_time)
+            fake_logit_output, fake_output = model(fake_inputs, fake_time)
 
             fake_label = torch.zeros_like(fake_output)
             real_label = torch.ones_like(real_output)
 
             temp_outputs = torch.cat((fake_output, real_output), 0)
 
-            # print("outputs: {}".format(outputs[-1]))
+            outputs = torch.round(temp_outputs).detach().cpu().numpy()
 
-            outputs = torch.round(temp_outputs)
+            # print("outputs: {}".format(outputs.shape))
 
-            # print("outputs: {}".format(outputs[-1]))
+            labels = torch.cat((fake_label, real_label), 0).detach().cpu().numpy()
 
-            labels = torch.cat((fake_label, real_label), 0)
+            # print("labels: {}".format(labels.shape))
 
-            correct_results_sum += (labels == outputs).sum().item()
+            if i == 0:
+                y_output_final = np.squeeze(outputs)
+                y_label_final = np.squeeze(labels)
+            else:
+                y_output_final = np.concatenate((y_output_final, np.squeeze(outputs)), axis = 0)
+                y_label_final = np.concatenate((y_label_final, np.squeeze(labels)), axis = 0)
 
-            results_sum += (labels.shape[0] * labels.shape[1])
+            # print("final labels: {}".format(y_label_final.shape))
 
-    acc = np.round((correct_results_sum / results_sum), 4)
+            # print("final output: {}".format(y_output_final.shape))
+           
+            # correct_results_sum += (labels == outputs).sum().item()
+            # results_sum += (labels.shape[0] * labels.shape[1])
+
+    # acc = np.round((correct_results_sum / results_sum), 4)
+    acc = accuracy_score(y_label_final, (y_output_final>0.5))
     discriminative_score = np.abs(0.5-acc)
     
     # print("Finish Discriminator Testing")
@@ -202,11 +216,11 @@ def Predictive(model, synthetic_train_data_loader, real_test_data_loader):
             bat, seq, dim = inputs.shape
 
             # X = inputs[0][:, :-1, :(dim-1)]
-            X = inputs[:, :-1, :]
+            X = inputs[:, :-1, :(dim-1)]
             # print("X: {}".format(X.shape))
 
             # Y = inputs[0][:, 1:, (dim-1)].detach().clone()
-            Y = inputs[:, 1:, -1].detach().clone()
+            Y = inputs[:, 1:, (dim-1)].detach().clone()
             # print("Y: {}".format(Y.shape))
 
             X = X.to(CUDA_DEVICES)
@@ -252,7 +266,7 @@ def Predictive(model, synthetic_train_data_loader, real_test_data_loader):
 
             bat, seq, dim = inputs.shape
 
-            X = inputs[:, :-1, :]
+            X = inputs[:, :-1, :(dim-1)]
 
             Y = inputs[:, 1:, -1]
 
@@ -279,38 +293,48 @@ def Predictive(model, synthetic_train_data_loader, real_test_data_loader):
 
 if __name__ == '__main__':
 
-    real_data_set = TimeSeriesDataset(
-        root_dir=real_dataset_dir, transform=None, seq_len=seq_len)
+    real_dataset = TimeSeriesDataset(
+        root_dir=real_dataset_dir, seq_len=seq_len)
 
-    print("real_data_set: {}".format(len(real_data_set)))
+    print("real_data_set: {}".format(len(real_dataset)))
 
-    synthetic_data_set = TimeSeriesDataset(
-        root_dir=synthetic_dataset_dir, transform=None, seq_len=seq_len, mode='synthetic')
+    synthetic_dataset = TimeSeriesDataset(
+        root_dir=synthetic_dataset_dir, seq_len=seq_len, mode='synthetic')
 
-    print("synthetic_data_set: {}".format(len(synthetic_data_set)))
+    print("synthetic_data_set: {}".format(len(synthetic_dataset)))
 
-    max_seq_len = real_data_set.max_seq_len if real_data_set.max_seq_len > synthetic_data_set.max_seq_len else synthetic_data_set.max_seq_len
+    real_train_dataset, real_test_dataset = train_test_divide(
+        data_set=real_dataset, mode='test')
+
+    synthetic_train_dataset, synthetic_test_dataset = train_test_divide(
+        data_set=synthetic_dataset, mode='test')
+    
+    mix_train_dataset = ConcatDataset([real_train_dataset, synthetic_train_dataset])
+    print("mix_train_dataset: {}".format(len(mix_train_dataset)))
+
+    max_seq_len = real_data_set.max_seq_len if real_dataset.max_seq_len > synthetic_dataset.max_seq_len else synthetic_dataset.max_seq_len
 
     print("Max sequence length: {}".format(max_seq_len))
 
-    real_train_data_loader, real_test_data_loader = train_test_dataloader(
-        data_set=real_data_set, mode='test')
+    # TRTR & discriminative
+    real_train_data_loader = DataLoader(dataset=real_train_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
+    real_test_data_loader = DataLoader(dataset=real_test_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
+    synthetic_train_data_loader = DataLoader(dataset=synthetic_train_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
+    synthetic_test_data_loader = DataLoader(dataset=synthetic_test_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
 
-    synthetic_train_data_loader, synthetic_test_data_loader = train_test_dataloader(
-        data_set=synthetic_data_set, mode='test')
-
-    predictive_train_loader = DataLoader(dataset=synthetic_data_set, batch_size=batch_size, shuffle=False, num_workers=1)
-    
-    predictive_test_loader = DataLoader(dataset=real_data_set, batch_size=batch_size, shuffle=False, num_workers=1)
-    
+    # TMTR
+    mix_train_data_loader = DataLoader(dataset=mix_train_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
+        
     discriminative_score_list = []
-    predictive_score_list = []
+    TRTR_score_list = []
+    TSTR_score_list = []
+    TMTR_score_list = []
 
     for iteration in range(0, test_iteration):
         
         discriminator = Simple_Discriminator(
             time_stamp=max_seq_len, 
-            input_size=27,
+            input_size=28,
             # hidden_dim = input_size / 2
             hidden_dim=14,
             output_dim=1,
@@ -318,6 +342,9 @@ if __name__ == '__main__':
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len,
         )
+
+        discriminative_score = Discriminative(
+            discriminator, real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader)
 
         predictor = Simple_Predictor(
             time_stamp=max_seq_len-1,
@@ -328,20 +355,50 @@ if __name__ == '__main__':
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len-1
         )
-        discriminative_score = Discriminative(
-            discriminator, real_train_data_loader, real_test_data_loader, synthetic_train_data_loader, synthetic_test_data_loader)
-        # predictive_train_loader, predictive_test_loader
-        predictive_score = Predictive(
-            predictor, real_train_data_loader, real_test_data_loader)
         
-        # print("iteration: {}, predictive_score: {:.6f}".format(iteration, predictive_score))
-        print("iteration: {}, discriminative_score: {:.6f}, predictive_score: {:.6f}".format(iteration, discriminative_score, predictive_score))
+        # predictive_train_loader, real_train_data_loader
+        TSTR_predictive_score = Predictive(
+            predictor, synthetic_train_data_loader, real_test_data_loader)
+        
+        predictor = Simple_Predictor(
+            time_stamp=max_seq_len-1,
+            input_size=27,
+            hidden_dim=14,
+            output_dim=1,
+            num_layers=1,
+            padding_value=PADDING_VALUE,
+            max_seq_len=max_seq_len-1
+        )
+
+        TMTR_predictive_score = Predictive(
+            predictor, mix_train_data_loader, real_test_data_loader)
+        
+        print("iteration: {}, discriminative_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}".format(iteration, discriminative_score, TSTR_predictive_score, TMTR_predictive_score))
+
+        # predictor = Simple_Predictor(
+        #     time_stamp=max_seq_len-1,
+        #     input_size=5,
+        #     hidden_dim=2,
+        #     output_dim=1,
+        #     num_layers=1,
+        #     padding_value=PADDING_VALUE,
+        #     max_seq_len=max_seq_len-1
+        # )
+
+        # TRTR_predictive_score = Predictive(
+        #     predictor, real_train_data_loader, real_test_data_loader)
 
         discriminative_score_list.append(discriminative_score)
-        predictive_score_list.append(predictive_score)
+        # TRTR_score_list.append(TRTR_predictive_score)
+        TSTR_score_list.append(TSTR_predictive_score)
+        TMTR_score_list.append(TMTR_predictive_score)
     
     mean_discriminative_score = np.mean(discriminative_score_list)
-    mean_predictive_score = np.mean(predictive_score_list)
+    # mean_TRTR_score = np.mean(TRTR_score_list)
+    mean_TSTR_score = np.mean(TSTR_score_list)
+    mean_TMTR_score = np.mean(TMTR_score_list)
 
     print("Discriminative score: {:.4f}".format(mean_discriminative_score))
-    print("Predictive score: {:.4f}".format(mean_predictive_score))
+    # print("TRTR predictive score: {:.4f}".format(mean_TRTR_score))
+    print("TSTR predictive score: {:.4f}".format(mean_TSTR_score))
+    print("TMTR predictive score: {:.4f}".format(mean_TMTR_score))

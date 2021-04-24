@@ -130,7 +130,7 @@ def Generate_data():
         for i in range(no):
             temp = X_hat[i, :ori_time[i], :]
             generated_data.append(temp)
-
+    
     generated_data = generated_data * max_val2
     generated_data = generated_data + min_val2
 

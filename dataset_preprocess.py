@@ -43,7 +43,7 @@ def MinMaxScaler1(data):
     denominator = np.max(data, 0) - np.min(data, 0)
     norm_data = numerator / (denominator + 1e-7)
     # rescale to (-1, 1)
-    # norm_data = 2 * norm_data - 1A
+    # norm_data = 2 * norm_data - 1
     return norm_data, min_val, max_val
 
 
