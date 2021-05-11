@@ -1,0 +1,39 @@
+2021_02_22:
+更換 dataset: 
+stock_data.csv
+energy_data.csv
+
+stock_gru_MSE_100_64_24_6_48_5
+No gradient_penalty, optimizer=adam
+Discriminative score: 0.403
+Predictive score: 0.41196817914471356
+
+
+stock_gru_Soft_DTW_500_64_24_6_48_5
+No gradient_penalty, optimizer=adam
+Discriminative score: 0.3749
+Predictive score: 0.39982689173114005
+
+
+stock_gru_MSE_wgan_500_64_24_6_48_5
+has gradient_penalty, optimizer=RMSprop
+Discriminative score: 0.4192
+Predictive score: 0.3982185776056681
+
+
+stock_gru_Soft_DTW_wgan_500_64_24_6_48_5
+has gradient_penalty, optimizer=RMSprop
+Discriminative score: 0.3984
+Predictive score: 0.4040916122203311
+
+
+stock_gru_MSE_hinge_500_64_24_6_48_5
+no gradient_penalty, optimizer=Adam
+Discriminative score: 0.399
+Predictive score: 0.40552932414425513
+
+
+stock_gru_Soft_DTW_hinge_500_64_24_6_48_5
+no gradient_penalty, optimizer=Adam
+Discriminative score: 0.4101
+Predictive score: 0.41102627097605965

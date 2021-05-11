@@ -1,0 +1,10 @@
+1. discriminator 初始 learning rate: 0.003 => 0.001
+
+energy_gru_MSE_500_64_24_28_120_5
+Discriminative score: 0.44910000000000005
+Predictive score: 0.38125500475542
+
+
+energy_gru_Soft_DTW_500_64_24_28_120_5
+Discriminative score: 0.45730000000000004
+Predictive score: 0.3692903113940209

@@ -1,0 +1,111 @@
+修正 dataset.py, data_preprocess.py, Time_generation.py, Time_data_visualization.py
+新增 learning rate scheduler
+wgan 取消 discriminator threshold 限制
+固定 Timetest.py 的 batch_size 為 32 (不同 bastch size 差距太大)
+
+
+stock_gru_MSE_1000_128_24_6_48_5
+Discriminative score: 0.00030000000000002247
+Predictive score: 0.09911377218265895
+
+
+stock_gru_MSE_wgan_1000_128_24_6_48_5
+Discriminative score: 0.00030000000000002247
+Predictive score: 0.05157702987718096
+
+
+stock_gru_Soft_DTW_1000_128_24_6_48_5
+Discriminative score: 0.00030000000000002247
+Predictive score: 0.07965567868522855
+
+
+stock_gru_Soft_DTW_wgan_1000_128_24_6_48_5
+stock_gru_Soft_DTW_wgan_1000_128_24_6_48_5
+
+
+stock_gru_MSE_hinge_1000_128_24_6_48_5
+Discriminative score: 0.3657
+Predictive score: 0.0853728090658285
+
+
+stock_gru_Soft_DTW_hinge_1000_128_24_6_48_5
+Discriminative score: 0.3587
+Predictive score: 0.08428517942692342
+
+
+
+
+===========================================================================================
+
+
+
+energy_gru_MSE_1000_128_100_28_120_5 (O)
+
+
+
+energy_gru_MSE_wgan_1000_100_28_120_5 (O)
+
+
+
+
+energy_gru_Soft_DTW_1000_128_100_28_120_5 (O)
+
+
+
+
+energy_gru_Soft_DTW_wgan_1000_128_100_28_120_5 (O)
+
+
+
+
+
+energy_gru_MSE_hinge_1000_100_28_120_5 (O)
+
+
+
+
+energy_gru_Soft_DTW_hinge_1000_100_28_120_5 (O)
+
+
+
+
+=============================================================================
+
+
+
+action1_gru_MSE_1000_128_100_27_120_5
+
+
+
+action1_gru_MSE_wgan_1000_100_27_120_5
+
+
+
+
+action1_gru_Soft_DTW_1000_128_100_27_120_5
+
+
+
+
+action1_gru_Soft_DTW_wgan_1000_128_100_27_120_5
+
+
+
+
+
+action1_gru_MSE_hinge_1000_100_28_120_5
+
+
+
+
+action1_gru_Soft_DTW_hinge_1000_100_28_120_5
+
+
+
+
+
+
+
+
+
+
