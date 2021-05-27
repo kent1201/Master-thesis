@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import configparser
 import os
+import gc
 import pandas as pd
 from datetime import date
 from torch.utils.data import DataLoader
@@ -91,6 +92,13 @@ def Generate_data():
     data_seq_len, dim = np.asarray(real_data).shape
 
     no = len(batch_real_data)
+    
+    # release variable memory
+    del _
+    del real_data
+    del batch_real_data
+    gc.collect()
+    # _, real_data, batch_real_data = None, None, None
 
     # load model
     generator = Recovery(
@@ -151,18 +159,21 @@ def Generate_data():
     for _ in range(0, times_iteration):
 
         with torch.no_grad():
+            
+            with torch.cuda.amp.autocast():
+                # generate noize
+                Z = random_generator(no, seq_len, dim, ori_time)
+                Z = Z.to(CUDA_DEVICES)
+                T = torch.as_tensor(ori_time)
 
-            # generate noize
-            Z = random_generator(no, seq_len, dim, ori_time)
-            Z = Z.to(CUDA_DEVICES)
-            T = torch.as_tensor(ori_time)
+                # generate synthetic data
+                E_hat = generator(Z, T)
+                H_hat = supervisor(E_hat, T)
+                X_hat = recovery(H_hat, T)
 
-            # generate synthetic data
-            E_hat = generator(Z, T)
-            H_hat = supervisor(E_hat, T)
-            X_hat = recovery(H_hat, T)
-
-        X_hat = X_hat.cpu().detach().numpy()
+        # X_hat = X_hat.cpu().detach().numpy()
+        X_hat = X_hat.cpu().numpy()
+        # print("X_hat: {}".format(X_hat.shape))
 
         for i in range(no):
             temp = X_hat[i, :ori_time[i], :]
@@ -173,6 +184,10 @@ def Generate_data():
 
     # Make all batch data into a list
     generated_data_list = concat_data(generated_data, generated_data_list)
+
+    # release variable memory
+    del generated_data
+    gc.collect()
 
     # Renormalized the synthetic normalized data
     generated_data_list = data_postprocess(

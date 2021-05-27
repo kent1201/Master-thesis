@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from Network.Self_Attention.modules import ScaledDotProductAttention
+# from Self_Attention.modules import ScaledDotProductAttention
 
 
 class MultiHeadAttention(nn.Module):

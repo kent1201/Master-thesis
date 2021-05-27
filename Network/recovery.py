@@ -3,7 +3,9 @@ import torch
 import torch.nn.functional as F
 # for others
 from Network.tcn import TemporalConvNet
-# from Network.Self_Attention.layers import DecoderLayer
+from Network.Self_Attention.layers import EncoderLayer
+from Network.Self_Attention.utils import PositionalEncoding
+from Network.Self_Attention.sublayers import MultiHeadAttention
 # for inner testing
 # from tcn import TemporalConvNet
 # from Attention.layers import DecoderLayer
@@ -24,6 +26,7 @@ class Recovery(nn.Module):
         self.padding_value = padding_value
         self.max_seq_len = max_seq_len
         self.mode = mode
+        self.dropout = nn.Dropout(p=0.1)
 
         if self.module == 'gru':
             self.r_cell = nn.GRU(
@@ -42,11 +45,28 @@ class Recovery(nn.Module):
                 kernel_size=4,
                 dropout=0.2
             )
+        elif self.module == 'self-attn':
+            self.position = PositionalEncoding(self.hidden_dim, dropout=0.1, max_len=self.max_seq_len)
+            # self.r_cell = nn.ModuleList([
+            #     EncoderLayer(
+            #         d_model=self.hidden_dim,
+            #         d_inner=self.hidden_dim,
+            #         n_head=(self.hidden_dim // 3),
+            #         d_k=(self.hidden_dim // (self.hidden_dim // 3)),
+            #         d_v=(self.hidden_dim // (self.hidden_dim // 3))
+            #     ) for _ in range(self.num_layers)])
+            self.r_cell = MultiHeadAttention(
+                n_head=(self.hidden_dim // 3),
+                d_model=self.hidden_dim,
+                d_k=(self.hidden_dim // (self.hidden_dim // 3)),
+                d_v=(self.hidden_dim // (self.hidden_dim // 3))
+            )
 
         self.activate = activate_function
         self.fc1 = nn.Sequential(
             nn.utils.spectral_norm(nn.Linear(self.input_size, self.hidden_dim)),
             nn.LayerNorm([self.time_stamp, self.hidden_dim]),
+            self.dropout,
             self.activate
         )
         self.fc2 = nn.Sequential(
@@ -54,6 +74,21 @@ class Recovery(nn.Module):
             self.activate
             # nn.Linear(self.hidden_dim, self.output_dim)
         )
+        # self.fc1_1 = nn.Sequential(
+        #     nn.utils.spectral_norm(nn.Linear(self.hidden_dim, self.hidden_dim)),
+        #     nn.LayerNorm([self.hidden_dim, self.hidden_dim]),
+        #     self.activate
+        # )
+        # self.fc1_2 = nn.Sequential(
+        #     nn.utils.spectral_norm(nn.Linear(self.hidden_dim, self.hidden_dim)),
+        #     nn.LayerNorm([self.hidden_dim, self.hidden_dim]),
+        #     self.activate
+        # )
+        # self.fc1_3 = nn.Sequential(
+        #     nn.utils.spectral_norm(nn.Linear(self.hidden_dim, self.hidden_dim)),
+        #     nn.LayerNorm([self.hidden_dim, self.hidden_dim]),
+        #     self.activate
+        # )
 
         # Init weights
         # Default weights of TensorFlow is Xavier Uniform for W and 1 or 0 for b
@@ -87,6 +122,17 @@ class Recovery(nn.Module):
             fc1_out = torch.transpose(fc1_out, 1, 2)
             output = self.r_cell(fc1_out)
             output = torch.transpose(output, 1, 2)
+        elif self.module == 'self-attn':
+            fc1_out = self.position(fc1_out)
+            fc1_out = self.fc1_1(fc1_out)
+            fc1_out = self.fc1_2(fc1_out)
+            enc_output = torch.transpose(fc1_out, 0, 1)
+            ## transformer encoder layer
+            # for enc_layer in self.r_cell:
+            #     enc_output, enc_slf_attn = enc_layer(enc_output)
+            enc_output, enc_slf_attn = self.r_cell(enc_output, enc_output, enc_output)
+            output = torch.transpose(enc_output, 0, 1)
+            output = self.fc1_3(output)
         elif self.module == 'gru':
             X_packed = torch.nn.utils.rnn.pack_padded_sequence(
                 input=fc1_out,

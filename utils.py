@@ -16,11 +16,20 @@ config.read('Configure.ini', encoding="utf-8")
 
 manualSeed = random.randint(1, 10000)  # use if you want new results
 # print("Random Seed: ", manualSeed)
-random.seed(69)
+random.seed(123)
 torch.manual_seed(manualSeed)
 
+def add_noise(x, z, epoch, prob=0.8):
+    # a = random.random()
+    # if epoch % 300 == 0 and epoch != 0:
+    #     prob = prob * 0.8
+    # if a < prob:
+    #     x = x + z
+    if epoch < 600:
+        x = x + z
+    return x
 
-def random_generator(batch_size, max_seq_len, z_dim, T_mb):
+def random_generator(batch_size, max_seq_len, z_dim, T_mb=100.0):
     """Random vector generation.
 
     Args:

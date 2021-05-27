@@ -1,7 +1,7 @@
 ''' Define the Layers '''
 import torch.nn as nn
 # for inner testing
-# from Attention.sublayers import MultiHeadAttention, PositionwiseFeedForward
+# from Self_Attention.sublayers import MultiHeadAttention, PositionwiseFeedForward
 from Network.Self_Attention.sublayers import MultiHeadAttention, PositionwiseFeedForward
 
 
@@ -13,6 +13,7 @@ class EncoderLayer(nn.Module):
         self.slf_attn = MultiHeadAttention(
             n_head, d_model, d_k, d_v, dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
+        
 
     def forward(self, enc_input):
         enc_output, enc_slf_attn = self.slf_attn(

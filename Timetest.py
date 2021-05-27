@@ -41,6 +41,7 @@ p_num_epochs = config.getint('test', 'p_num_epochs')
 batch_size = config.getint('test', 'batch_size')
 learning_rate = config.getfloat('test', 'learning_rate')
 seq_len = config.getint('GenTstVis', 'seq_len')
+n_features = config.getint('GenTstVis', 'n_features')
 PADDING_VALUE = config.getfloat('default', 'padding_value')
 test_iteration = config.getint('test', 'test_iteration')
 
@@ -341,9 +342,9 @@ if __name__ == '__main__':
         #============================================================================================================================#
         discriminator = Simple_Discriminator(
             time_stamp=max_seq_len,
-            input_size=28,
+            input_size=n_features,
             # hidden_dim = input_size / 2
-            hidden_dim=14,
+            hidden_dim=(n_features // 2),
             output_dim=1,
             num_layers=1,
             padding_value=PADDING_VALUE,
@@ -357,8 +358,8 @@ if __name__ == '__main__':
         #============================================================================================================================#
         predictor = Simple_Predictor(
             time_stamp=max_seq_len-1,
-            input_size=28,
-            hidden_dim=14,
+            input_size=n_features-1,
+            hidden_dim=(n_features // 2),
             output_dim=1,
             num_layers=1,
             padding_value=PADDING_VALUE,
@@ -373,8 +374,8 @@ if __name__ == '__main__':
         #============================================================================================================================#
         predictor = Simple_Predictor(
             time_stamp=max_seq_len-1,
-            input_size=28,
-            hidden_dim=14,
+            input_size=n_features-1,
+            hidden_dim=(n_features // 2),
             output_dim=1,
             num_layers=1,
             padding_value=PADDING_VALUE,
@@ -388,8 +389,8 @@ if __name__ == '__main__':
         #============================================================================================================================#
         predictor = Simple_Predictor(
             time_stamp=max_seq_len-1,
-            input_size=28,
-            hidden_dim=14,
+            input_size=n_features-1,
+            hidden_dim=(n_features // 2),
             output_dim=1,
             num_layers=1,
             padding_value=PADDING_VALUE,
