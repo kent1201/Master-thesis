@@ -1,0 +1,95 @@
+Ablation Study
+Different loss comparsion
+
+demand_gru_MSE_wgan_10000_5_5_13_56_1e_5 (07/09)
+CUDA DEVICE: cuda:0
+[train] module: gru
+[train] action: demand
+[train] seq_len: 5
+[train] n_features: 13
+[train] hidden size: 56
+[train] num_layers: 5
+[train] num_epochs: 10000
+[train] batch_size: 5
+[train] distance function: MSE
+[train] adversarial loss function: wgan
+
+cpoch: 9000
+Discriminative score: 0.1235
+TSTR predictive score: 0.2867
+TMTR predictive score: 0.2436
+TRTR predictive score: 0.2416
+
+
+
+
+=========================================================================
+
+demand_gru_MSE_default_10000_5_5_13_56_5e_5 (07/05)
+
+
+now : 10000
+
+epoch: 10000
+Discriminative score: 0.1294
+TSTR predictive score: 0.2664
+TMTR predictive score: 0.2383
+TRTR predictive score: 0.2416
+
+epoch: 9500
+Discriminative score: 0.0647
+TSTR predictive score: 0.3196
+TMTR predictive score: 0.3454
+TRTR predictive score: 0.3871
+
+cpoch: 9000
+Discriminative score: 0.1000
+TSTR predictive score: 0.3133
+TMTR predictive score: 0.2752
+TRTR predictive score: 0.2902
+
+EPOCH: 8000
+Discriminative score: 0.1588
+TSTR predictive score: 0.3497
+TMTR predictive score: 0.2875
+TRTR predictive score: 0.2750
+
+epoch: 7000
+Discriminative score: 0.0971
+TSTR predictive score: 0.2944
+TMTR predictive score: 0.2658
+TRTR predictive score: 0.2698
+
+
+epoch: 6000
+Discriminative score: 0.0824
+TSTR predictive score: 0.3598
+TMTR predictive score: 0.2764
+TRTR predictive score: 0.2460
+
+
+epoch: 5000
+Discriminative score: 0.1412
+TSTR predictive score: 0.3851
+TMTR predictive score: 0.2740
+TRTR predictive score: 0.2551
+
+epoch: 4000
+Discriminative score: 0.1647
+TSTR predictive score: 0.3781
+TMTR predictive score: 0.2946
+TRTR predictive score: 0.2560
+
+
+epoch: 3000
+Discriminative score: 0.3382
+TSTR predictive score: 0.3224
+TMTR predictive score: 0.2483
+TRTR predictive score: 0.2345
+
+epoch: 2000
+Discriminative score: 0.4824
+TSTR predictive score: 0.3509
+TMTR predictive score: 0.2418
+TRTR predictive score: 0.2319
+

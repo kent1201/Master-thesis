@@ -23,7 +23,7 @@ config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
 
 # 固定演算法進行加速
-torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.benchmark = True
 
 # gpu-used
 CUDA_DEVICES = torch.device("cuda:"+config.get('default',
@@ -182,8 +182,10 @@ def Discriminative(model, real_train_data_loader, real_test_data_loader, synthet
             # results_sum += (labels.shape[0] * labels.shape[1])
 
     # acc = np.round((correct_results_sum / results_sum), 4)
+    # (y_output_final>0.5) make (1, 0) -> (True, False)
     acc = accuracy_score(y_label_final, (y_output_final>0.5))
     discriminative_score = np.abs(0.5-acc)
+    # print("discriminative_score: {}".format(discriminative_score))
 
     # print("Finish Discriminator Testing")
 
@@ -274,7 +276,7 @@ def Predictive(model, synthetic_train_data_loader, real_test_data_loader, mode):
 
             X = inputs[:, :-1, :(dim-1)]
 
-            Y = inputs[:, 1:, -1]
+            Y = inputs[:, 1:, (dim-1)]
 
             X = X.to(CUDA_DEVICES)
             Y = Y.to(CUDA_DEVICES)
@@ -285,8 +287,8 @@ def Predictive(model, synthetic_train_data_loader, real_test_data_loader, mode):
             Y_pred = model(X, Xtime)
             Y_pred = Y_pred.squeeze()
 
-            sum_absolute_errors += torch.abs(
-                torch.sum(torch.sub(Y_pred, Y))).item()
+            sum_absolute_errors += torch.sum(
+                torch.abs(torch.sub(Y_pred, Y))).item()
 
             sum_examples += Y.shape[0] * Y.shape[1]
 
@@ -323,11 +325,11 @@ if __name__ == '__main__':
     print("Max sequence length: {}".format(max_seq_len))
 
     # TRTR & discriminative
-    real_train_data_loader = DataLoader(dataset=real_train_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    real_test_data_loader = DataLoader(dataset=real_test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    synthetic_data_loader = DataLoader(dataset=synthetic_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    synthetic_train_data_loader = DataLoader(dataset=synthetic_train_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    synthetic_test_data_loader = DataLoader(dataset=synthetic_test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    real_train_data_loader = DataLoader(dataset=real_train_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    real_test_data_loader = DataLoader(dataset=real_test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    synthetic_data_loader = DataLoader(dataset=synthetic_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    synthetic_train_data_loader = DataLoader(dataset=synthetic_train_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    synthetic_test_data_loader = DataLoader(dataset=synthetic_test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     # TMTR
     mix_data_loader = DataLoader(dataset=mix_dataset, batch_size=batch_size, shuffle=False, num_workers=1)
@@ -336,8 +338,13 @@ if __name__ == '__main__':
     TRTR_score_list = []
     TSTR_score_list = []
     TMTR_score_list = []
+    discriminative_score = 0.0
+    TSTR_predictive_score = 0.0
+    TMTR_predictive_score = 0.0
+    TRTR_predictive_score = 0.0
 
     for iteration in range(0, test_iteration):
+
         ## Discriminative score
         #============================================================================================================================#
         discriminator = Simple_Discriminator(
@@ -346,7 +353,7 @@ if __name__ == '__main__':
             # hidden_dim = input_size / 2
             hidden_dim=(n_features // 2),
             output_dim=1,
-            num_layers=1,
+            num_layers=2,
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len,
         )
@@ -361,7 +368,7 @@ if __name__ == '__main__':
             input_size=n_features-1,
             hidden_dim=(n_features // 2),
             output_dim=1,
-            num_layers=1,
+            num_layers=2,
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len-1
         )
@@ -377,7 +384,7 @@ if __name__ == '__main__':
             input_size=n_features-1,
             hidden_dim=(n_features // 2),
             output_dim=1,
-            num_layers=1,
+            num_layers=2,
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len-1
         )
@@ -392,7 +399,7 @@ if __name__ == '__main__':
             input_size=n_features-1,
             hidden_dim=(n_features // 2),
             output_dim=1,
-            num_layers=1,
+            num_layers=2,
             padding_value=PADDING_VALUE,
             max_seq_len=max_seq_len-1
         )
@@ -401,6 +408,7 @@ if __name__ == '__main__':
             predictor, real_train_data_loader, real_test_data_loader, mode='TRTR')
 
         print("iteration: {}, discriminative_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}, TRTR_score: {:.6f}".format(iteration, discriminative_score, TSTR_predictive_score, TMTR_predictive_score, TRTR_predictive_score))
+        # print("iteration: {}, TSTR_score: {:.6f}, TMTR_score: {:.6f}".format(iteration, TSTR_predictive_score, TMTR_predictive_score))
 
         plt.savefig('./Loss_curve/Score_loss_curve.png', bbox_inches='tight')
         plt.legend()

@@ -1,0 +1,167 @@
+使用 MDTimeGAN 訓練 traffic data
+CUDA DEVICE: cuda:0
+[train] module: gru
+[train] action: traffic
+[train] seq_len: 24
+[train] n_features: 6
+[train] hidden size: 24
+[train] num_layers: 5
+[train] num_epochs: 10000
+[train] batch_size: 64
+[train] distance function: MSE
+[train] adversarial loss function: hinge
+
+traffic_gru_MSE_hinge_10000_128_24_6_24_5e_5 (07/05) (X)
+traffic_gru_MSE_hinge_10000_64_24_6_24_1e_5 (07/06)
+traffic_gru_MSE_hinge_10000_64_24_6_24_3e_7 (07/07)
+traffic_gru_MSE_hinge_10000_64_24_6_24_4e_4 (07/07)
+traffic_gru_MSE_hinge_10000_64_24_6_24_5e_6 (07/09) learning rate step learning=0.5
+now: epoch: 
+choice: 
+choice1: 
+choice2: 
+choice3: 
+
+
+mean_discriminative_score: 
+iteration 1:
+    mean_TSTR_score: 
+    mean_TMTR_score: 
+iteration 30:
+    mean_TSTR_score: 
+    mean_TMTR_score:     
+mean_TRTR_score: 
+
+
+============================================================================================================================================================
+
+使用 MDTimeGAN 訓練 demand data
+
+CUDA DEVICE: cuda:0
+[train] module: gru
+[train] action: demand
+[train] seq_len: 5
+[train] n_features: 13
+[train] hidden size: 56
+[train] num_layers: 5
+[train] num_epochs: 10000
+[train] batch_size: 64
+[train] distance function: MSE
+[train] adversarial loss function: hinge
+
+demand_gru_MSE_hinge_10000_5_5_13_56_5e_5 (06/29) 
+demand_gru_MSE_hinge_10000_5_5_13_56_1e_5 (07/06) (X)
+
+now: epoch: 3700
+choice0: 3500, 3100, 3200, 3400, 3600, 3700, 3800
+choice1: 7500, 7400
+choice2: 9500, 9700, 9900
+
+
+mean_discriminative_score: 
+iteration 1:
+    mean_TSTR_score: 
+    mean_TMTR_score: 
+iteration 30:
+    mean_TSTR_score: 
+    mean_TMTR_score:     
+mean_TRTR_score:
+
+epoch: 3500
+Discriminative score: 0.1206
+TSTR predictive score: 0.4244
+TMTR predictive score: 0.2900
+TRTR predictive score: 0.2802
+
+epoch: 3100
+Discriminative score: 0.1118
+TSTR predictive score: 0.3601
+TMTR predictive score: 0.2621
+TRTR predictive score: 0.2472
+
+epoch: 3200
+Discriminative score: 0.1059
+TSTR predictive score: 0.3258
+TMTR predictive score: 0.2429
+TRTR predictive score: 0.2281
+
+epoch: 3400
+Discriminative score: 0.2853
+TSTR predictive score: 0.2996
+TMTR predictive score: 0.2327
+TRTR predictive score: 0.2317
+
+epoch: 3600
+Discriminative score: 0.0853
+TSTR predictive score: 0.3365
+TMTR predictive score: 0.2534
+TRTR predictive score: 0.2504
+
+epoch: 3700
+Discriminative score: 0.1941
+TSTR predictive score: 0.3196
+TMTR predictive score: 0.2347
+TRTR predictive score: 0.2382
+
+epoch: 3800
+
+epoch: 7500
+Discriminative score: 0.1382
+TSTR predictive score: 0.4421
+TMTR predictive score: 0.2784
+TRTR predictive score: 0.2377
+
+epoch: 7400
+Discriminative score: 0.0559
+TSTR predictive score: 0.4359
+TMTR predictive score: 0.3314
+TRTR predictive score: 0.2497
+
+epoch: 9500
+Discriminative score: 0.1500
+TSTR predictive score: 0.3165
+TMTR predictive score: 0.2231
+TRTR predictive score: 0.2185
+
+epoch: 9700
+Discriminative score: 0.1176
+TSTR predictive score: 0.3511
+TMTR predictive score: 0.2468
+TRTR predictive score: 0.2312
+
+epoch: 9900
+Discriminative score: 0.2059
+TSTR predictive score: 0.3276
+TMTR predictive score: 0.2554
+TRTR predictive score: 0.2405
+
+---------------------------------------------------------------------
+
+demand_gru_MSE_hinge_10000_5_5_13_56_4e_4 (07/07) (O)
+
+CUDA DEVICE: cuda:0
+[train] module: gru
+[train] action: demand
+[train] seq_len: 5
+[train] n_features: 13
+[train] hidden size: 56
+[train] num_layers: 5
+[train] num_epochs: 10000
+[train] batch_size: 5
+[train] distance function: MSE
+[train] adversarial loss function: hinge
+
+now epoch: 9000
+choice: 9500, 10000, 6000, 5000
+
+epoch: 10000
+Discriminative score: 0.2441
+TSTR predictive score: 0.2846
+TMTR predictive score: 0.2747
+TRTR predictive score: 0.2911
+
+epoch: 9000
+Discriminative score: 0.1147
+TSTR predictive score: 0.2545
+TMTR predictive score: 0.2552
+TRTR predictive score: 0.2656

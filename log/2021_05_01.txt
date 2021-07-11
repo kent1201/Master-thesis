@@ -13,39 +13,13 @@ now: epoch: 2500
 choice1: 3800
 choice2: 4000
 
-mean_discriminative_score: 0.037672199999999996
-mean_TSTR_score: 0.016495000000000003
-mean_TMTR_score: 0.014388000000000001
-mean_TRTR_score: 0.08854700000000001
 
+mean_discriminative_score: 0.0763
+iteration 1:
+    mean_TSTR_score: 0.1115
+    mean_TMTR_score: 0.0901
+iteration 30:
+    mean_TSTR_score: 0.0778
+    mean_TMTR_score: 0.0769    
+mean_TRTR_score: 0.1064
 
-CUDA DEVICE: cuda:0
-[train] module: gru
-[train] action: action1
-[train] seq_len: 82
-[train] n_features: 27
-[train] hidden size: 108
-[train] num_layers: 5
-[train] num_epochs: 5000
-[train] batch_size: 32
-[train] distance function: MSE
-[train] adversarial loss function: hinge
-
-
-
-
-
-
-
-
-CUDA DEVICE: cuda:0
-[train] module: gru
-[train] action: energy
-[train] seq_len: 100
-[train] n_features: 28
-[train] hidden size: 112
-[train] num_layers: 5
-[train] num_epochs: 5000
-[train] batch_size: 64
-[train] distance function: MSE
-[train] adversarial loss function: hinge

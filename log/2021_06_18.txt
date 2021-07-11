@@ -1,0 +1,47 @@
+run c_rnn_gan
+stock
+    stock_c_rnn_gan_default_50000_64_24_6_24_1e_3 (06/22)
+    epoch: 10000
+    mean_discriminative_score: 0.1580
+    iteration 1:
+        mean_TSTR_score: 0.3641
+        mean_TMTR_score: 0.5180
+    iteration 30:
+        mean_TSTR_score: 0.2159
+        mean_TMTR_score: 0.4960    
+    mean_TRTR_score: 0.1064
+
+traffic
+    traffic_c_rnn_gan_default_20000_64_100_28_120_5e_6 (06/23)
+    epoch: 10000
+    mean_discriminative_score: 0.3649
+    iteration 1:
+        mean_TSTR_score: 0.5929
+        mean_TMTR_score: 0.5180
+    iteration 30:
+        mean_TSTR_score: 0.4774
+        mean_TMTR_score: 0.4960    
+    mean_TRTR_score: 0.4804
+
+
+energy
+    energy_c_rnn_gan_default_5000_64_100_28_120_5e_5 (06/18)
+    epoch: 5000
+    mean_discriminative_score: 0.4949
+    iteration 1:
+        mean_TSTR_score: 0.5929
+        mean_TMTR_score: 
+    iteration 30:
+        mean_TSTR_score: 0.4928
+        mean_TMTR_score:     
+    mean_TRTR_score: 0.4926
+
+
+demand
+    demand_c_rnn_gan_default_10000_5_5_13_56_5e_5 (06/28)
+    epoch: 9000 
+    Discriminative score: 0.4765
+    TSTR predictive score: 0.3315
+    TMTR predictive score: 0.2722
+    TRTR predictive score: 0.2652
+

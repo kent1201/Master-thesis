@@ -27,9 +27,9 @@ pic_path = config.get('GenTstVis', 'pic_path') + '/' + config.get('GenTstVis',
 
 seq_len = config.getint('GenTstVis', 'seq_len')
 
-pca_pic_name = config.get('data_visualization', 'pca_pic_name')
+pca_pic_name = config.get('GenTstVis', 'model_epoch') + config.get('data_visualization', 'pca_pic_name')
 
-t_sne_pic_name = config.get('data_visualization', 't_sne_pic_name')
+t_sne_pic_name = config.get('GenTstVis', 'model_epoch')  + config.get('data_visualization', 't_sne_pic_name')
 
 
 def visualization(ori_data, generated_data, analysis, pic_path, pic_name):

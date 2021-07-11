@@ -14,6 +14,7 @@ from Network.recovery import Recovery
 from Network.supervisor import Supervisor
 from utils import random_generator
 from dataset_preprocess import MinMaxScaler1, batch_generation, extract_time, MinMaxScaler2, ReMinMaxScaler2, data_postprocess
+from tqdm import tqdm, trange
 
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
@@ -38,9 +39,9 @@ hidden_size = config.getint('GenTstVis', 'hidden_size')
 num_layers = config.getint('GenTstVis', 'num_layers')
 PADDING_VALUE = config.getfloat('default', 'padding_value')
 
-generator_name = config.get('generate_data', 'generator_name')
-supervisor_name = config.get('generate_data', 'supervisor_name')
-recovery_name = config.get('generate_data', 'recovery_name')
+generator_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'generator_name')
+supervisor_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'supervisor_name')
+recovery_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'recovery_name')
 
 syntheitc_data_name = config.get('GenTstVis', 'synthetic_data_name')
 module_name = config.get('default', 'module_name')
@@ -50,11 +51,14 @@ times_iteration = config.getint('generate_data', 'iteration')
 
 def concat_data(data, data_list):
     # concat each batch data into a alist
-    for i in range(0, len(data)):
+    logger = trange(len(data), desc=f"iteration: 0")
+    for i in logger:
         if len(data_list):
             data_list = np.concatenate((data_list, data[i]), axis=0)
         else:
             data_list = data[i]
+        logger.set_description(f"iteration: {i}")
+        
     return data_list
 
 
@@ -71,36 +75,9 @@ def Save_Data(data, save_path, data_names):
     return data_names
 
 
-def Generate_data():
+def Generate_data(model_path, no, data_seq_len, dim, ori_time):
 
-    # get synthetic data directory
-    save_dir_path = OUTPUT_DIR + '/' + date_dir + '/' + classification_dir
-
-    # get models' path
-    model_path = PATH_TO_WEIGHTS + '/' + date_dir + '/' + classification_dir
-
-    # load real data
-    real_data = np.loadtxt(dataset_dir, delimiter=",", skiprows=0)
-
-    # get real data min(max) value
-    real_data, min_val1, max_val1 = MinMaxScaler1(real_data)
-    batch_real_data = batch_generation(real_data, seq_len, 1)
-    ori_time, _ = extract_time(batch_real_data)
-    _, min_val2, max_val2 = MinMaxScaler2(batch_real_data)
-
-    # To get same amount of data
-    data_seq_len, dim = np.asarray(real_data).shape
-
-    no = len(batch_real_data)
-    
-    # release variable memory
-    del _
-    del real_data
-    del batch_real_data
-    gc.collect()
-    # _, real_data, batch_real_data = None, None, None
-
-    # load model
+   # load model
     generator = Recovery(
         module=module_name,
         mode='noise',
@@ -141,6 +118,9 @@ def Generate_data():
     generator.load_state_dict(torch.load(model_path + '/' + generator_name))
     supervisor.load_state_dict(torch.load(model_path + '/' + supervisor_name))
     recovery.load_state_dict(torch.load(model_path + '/' + recovery_name))
+    # generator = torch.load(model_path + '/' + generator_name)
+    # supervisor = torch.load(model_path + '/' + supervisor_name)
+    # recovery = torch.load(model_path + '/' + recovery_name)
     generator.eval()
     supervisor.eval()
     recovery.eval()
@@ -149,15 +129,13 @@ def Generate_data():
     generator = generator.to(CUDA_DEVICES)
     supervisor = supervisor.to(CUDA_DEVICES)
     recovery = recovery.to(CUDA_DEVICES)
-
-
-    data_names = 1
+    
     generated_data = list()
-    generated_data_list = list()
+    
 
     # times_iteration: How many times of the data's amount we want
-    for _ in range(0, times_iteration):
-
+    for iteration in range(0, times_iteration):
+        print("iteration: {}".format(iteration))
         with torch.no_grad():
             
             with torch.cuda.amp.autocast():
@@ -172,31 +150,76 @@ def Generate_data():
                 X_hat = recovery(H_hat, T)
 
         # X_hat = X_hat.cpu().detach().numpy()
+        # 這裡雖然將下面的顯存釋放了，但我們通過 nvidia-smi 命令顯存仍然在佔用
         X_hat = X_hat.cpu().numpy()
         # print("X_hat: {}".format(X_hat.shape))
 
         for i in range(no):
             temp = X_hat[i, :ori_time[i], :]
             generated_data.append(temp)
+    
+    # 只有執行完下面這句話，顯存會在 nvidia-smi 中釋放
+    torch.cuda.empty_cache()
 
+    return generated_data
+
+
+if __name__ == '__main__':
+
+     # get synthetic data directory
+    save_dir_path = OUTPUT_DIR + '/' + date_dir + '/' + classification_dir
+
+    # get models' path
+    model_path = PATH_TO_WEIGHTS + '/' + date_dir + '/' + classification_dir
+
+    # load real data
+    real_data = np.loadtxt(dataset_dir, delimiter=",", skiprows=0)
+
+    # get real data min(max) value
+    real_data, min_val1, max_val1 = MinMaxScaler1(real_data)
+    batch_real_data = batch_generation(real_data, seq_len, 1)
+    ori_time, _ = extract_time(batch_real_data)
+    _, min_val2, max_val2 = MinMaxScaler2(batch_real_data)
+
+    # To get same amount of data
+    data_seq_len, dim = np.asarray(real_data).shape
+
+    no = len(batch_real_data)
+    
+    # release variable memory
+    del _
+    del real_data
+    del batch_real_data
+    gc.collect()
+    # _, real_data, batch_real_data = None, None, None
+
+    print("Start generate data.")
+    generated_data = Generate_data(model_path, no, data_seq_len, dim, ori_time)
+
+
+    print("Start renormalize 2.")
     generated_data = generated_data * max_val2
     generated_data = generated_data + min_val2
 
+    print("Start concating data")
     # Make all batch data into a list
+    generated_data_list = list()
     generated_data_list = concat_data(generated_data, generated_data_list)
 
     # release variable memory
     del generated_data
     gc.collect()
 
+    print("Start renormalize 1.")
     # Renormalized the synthetic normalized data
     generated_data_list = data_postprocess(
         generated_data_list, min_val1, max_val1)
 
+    print("Start saving data.")
     # Save the data
+    data_names = 1
     data_names = Save_Data(
         generated_data_list, save_dir_path, syntheitc_data_name)
 
 
-if __name__ == '__main__':
-    Generate_data()
+    

@@ -16,7 +16,7 @@ config.read('Configure.ini', encoding="utf-8")
 
 manualSeed = random.randint(1, 10000)  # use if you want new results
 # print("Random Seed: ", manualSeed)
-random.seed(123)
+random.seed(0)
 torch.manual_seed(manualSeed)
 
 def add_noise(x, z, epoch, prob=0.8):

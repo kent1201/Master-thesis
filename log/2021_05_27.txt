@@ -1,0 +1,11 @@
+action1 data
+架構加入 dropout
+有預訓練過 (2021/05/26 1000 epoch .pth)
+learning rate5 = 0.0005
+註解 torch.backends.cudnn.benchmark = True
+
+energy data
+架構加入 dropout
+# 嘗試在 discriminator 前加入 noise 減弱
+learning rate5 = 0.0005
+註解 torch.backends.cudnn.benchmark = True

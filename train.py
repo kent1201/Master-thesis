@@ -31,7 +31,7 @@ config.read('Configure.ini', encoding="utf-8")
 
 # torch.backends.cudnn.deterministic = True
 # 固定演算法進行加速
-torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.benchmark = True
 # 防止 specified launch error: 強行統一至同一GPU
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -235,15 +235,15 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
         params=discriminator.parameters(), lr=(learning_rate5*3.0))
 
     # learning rate scheduler
-    idx = np.round(np.linspace(0, stage5_epochs-1, 20)).astype(int)
+    idx = np.round(np.linspace(0, stage5_epochs-1, 10)).astype(int)
     idx = idx[1:-1]
-    schedulerE = MultiStepLR(optimizerE, milestones=idx, gamma=0.95)
-    schedulerZE = MultiStepLR(optimizerZE, milestones=idx, gamma=0.95)
-    schedulerZG = MultiStepLR(optimizerZG, milestones=idx, gamma=0.95)
-    schedulerZD = MultiStepLR(optimizerZD, milestones=idx, gamma=0.95)
-    schedulerGS = MultiStepLR(optimizerGS, milestones=idx, gamma=0.95)
-    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.95)
-    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.95)
+    schedulerE = MultiStepLR(optimizerE, milestones=idx, gamma=0.8)
+    schedulerZE = MultiStepLR(optimizerZE, milestones=idx, gamma=0.8)
+    schedulerZG = MultiStepLR(optimizerZG, milestones=idx, gamma=0.5)
+    schedulerZD = MultiStepLR(optimizerZD, milestones=idx, gamma=0.5)
+    schedulerGS = MultiStepLR(optimizerGS, milestones=idx, gamma=0.5)
+    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.5)
+    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.5)
 
     # automatic mixed precision (AMP) 節省空間
     scalerE = torch.cuda.amp.GradScaler()
@@ -329,6 +329,10 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                     d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
                     d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()
                     d_loss = d_loss_real + d_loss_fake
+                else:
+                    d_loss_real = torch.nn.functional.binary_cross_entropy_with_logits(d_out_real, torch.ones_like(d_out_real))
+                    d_loss_fake = torch.nn.functional.binary_cross_entropy_with_logits(d_out_fake, torch.zeros_like(d_out_fake))
+                    d_loss = d_loss_real + d_loss_fake
             if d_loss > 0.15:
                 scalerZD.scale(d_loss).backward() # d_loss.backward()
                 scalerZD.step(optimizerZD) # optimizerZD.step()
@@ -342,7 +346,10 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
             with torch.cuda.amp.autocast():
                 Z_hat = z_embedder(H.detach(), T)
                 d_out_fake = z_discriminator(Z_hat, T)
-                g_loss = -torch.mean(d_out_fake)
+                if uloss_func == 'wgan' or uloss_func == 'hinge':
+                    g_loss = -torch.mean(d_out_fake)
+                else:
+                    g_loss = torch.nn.functional.binary_cross_entropy_with_logits(d_out_fake, torch.ones_like(d_out_fake))
             
             scalerZG.scale(g_loss).backward() # g_loss.backward()
             scalerZG.step(optimizerZG) # optimizerZG.step()
@@ -382,7 +389,14 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
 
                 Y_fake = discriminator(X_hat, T)
                 Y_fake_e = discriminator(X_hat_e, T)
-                lossG = torch.add(-torch.mean(Y_fake), torch.mul(0.1, -torch.mean(Y_fake_e))) + GS_loss
+                if uloss_func == 'wgan' or uloss_func == 'hinge':
+                    lossG = torch.add(-torch.mean(Y_fake), torch.mul(0.1, -torch.mean(Y_fake_e)))
+                else: 
+                    loss_g = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.ones_like(Y_fake)) 
+                    loss_g_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e)) 
+                    lossG = loss_g + 0.1 * loss_g_e
+                # Add supervised loss
+                lossG = lossG
             
             scalerG.scale(lossG).backward() # lossG.backward()
             scalerG.step(optimizerG) # optimizerG.step()
@@ -395,6 +409,8 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
             optimizerD.zero_grad()
 
             with torch.cuda.amp.autocast():
+                H = embedder(X, T)
+                H_hat_supervise = supervisor(H, T)
                 E_hat = z_recovery(Z, T)
                 H_hat = supervisor(E_hat, T)
                 X_hat = recovery(H_hat, T)
@@ -408,6 +424,8 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 Y_fake = discriminator(X_hat, T)    # Output of supervisor
                 Y_fake_e = discriminator(X_hat_e, T)   # Output of generator
                 lossD = 0.0
+                GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
+                GS_loss = GS_loss * 10.0
                 if uloss_func == 'wgan':
                     real_loss = -torch.mean(Y_real)
                     fake_loss = torch.mean(Y_fake)
@@ -422,6 +440,13 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                     d_loss_fake = torch.nn.ReLU()(1.0 + Y_fake).mean()
                     d_loss_fake_e = torch.nn.ReLU()(1.0 + Y_fake_e).mean()
                     lossD = d_loss_real + d_loss_fake + 0.1 * d_loss_fake_e
+                else:
+                    d_loss_real = torch.nn.functional.binary_cross_entropy_with_logits(Y_real, torch.ones_like(Y_real))
+                    d_loss_fake = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.zeros_like(Y_fake))
+                    d_loss_fake_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.zeros_like(Y_fake_e))
+                    lossD = d_loss_real + d_loss_fake + 0.1 * d_loss_fake_e
+                # Add supervised loss
+                lossD = lossD + GS_loss
             # Train discriminator (only when the discriminator does not work well)
             if lossD > 0.15:
                 scalerD.scale(lossD).backward() # lossD.backward()
@@ -463,8 +488,9 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
 
 
     if uloss_func == 'wgan':
-        plt.plot(Noise_wasserstion_dis, color='blue', label="Noise W dis")
-        plt.plot(Data_wasserstion_dis, color='green', label="Data W dis")
+        Noise_wasserstein_dis
+        plt.plot(Noise_wasserstein_dis, color='blue', label="Noise W dis")
+        plt.plot(Data_wasserstein_dis, color='green', label="Data W dis")
         plt.title("WGAN Training loss")
         plt.xlabel('Epoch')
         plt.legend()
@@ -512,7 +538,7 @@ if __name__ == '__main__':
     Data_set = TimeSeriesDataset(
         root_dir=dataset_dir, seq_len=seq_len, transform=None)
     Data_loader = DataLoader(
-        dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=1)
+        dataset=Data_set, batch_size=batch_size, shuffle=False, num_workers=0)
 
     Max_Seq_len = Data_set.max_seq_len
 
@@ -606,13 +632,13 @@ if __name__ == '__main__':
         max_seq_len=Max_Seq_len
     )
 
-    embedder.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_embedder.pth'))
-    recovery.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_recovery.pth'))
-    z_embedder.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_Zembedder.pth'))
-    z_recovery.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_generator.pth'))
-    supervisor.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_supervisor.pth'))
-    discriminator.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_discriminator.pth'))
-    z_discriminator.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_Zdiscriminator.pth'))
+    # embedder.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_embedder.pth'))
+    # recovery.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_recovery.pth'))
+    # z_embedder.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_Zembedder.pth'))
+    # z_recovery.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_generator.pth'))
+    # supervisor.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_supervisor.pth'))
+    # discriminator.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_discriminator.pth'))
+    # z_discriminator.load_state_dict(torch.load('/home/kent1201/Documents/Master-thesis/models/26_05_2021/action1_gru_MSE_hinge_6000_64_82_27_108_5/1000_Zdiscriminator.pth'))
 
 
     embedder = embedder.to(CUDA_DEVICES)

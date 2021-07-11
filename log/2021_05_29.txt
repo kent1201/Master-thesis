@@ -1,0 +1,8 @@
+驗證 lerning rate 大小
+實驗1:
+learning rate = 5e-5
+每 1000 epoch learning rate * 0.8
+
+實驗2:
+learning rate = 5e-3
+每 1000 epoch learning rate * 0.8

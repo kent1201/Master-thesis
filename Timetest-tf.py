@@ -34,7 +34,7 @@ d_num_epochs = config.getint('test', 'd_num_epochs')
 p_num_epochs = config.getint('test', 'p_num_epochs')
 batch_size = config.getint('test', 'batch_size')
 learning_rate = config.getfloat('test', 'learning_rate')
-seq_len = config.getint('test', 'seq_len')
+seq_len = config.getint('GenTstVis', 'seq_len')
 PADDING_VALUE = config.getfloat('default', 'padding_value')
 test_iteration = config.getint('test', 'test_iteration')
 
@@ -216,7 +216,7 @@ def discriminative_score_metrics (ori_data, generated_data):
   plt.plot(dis_training_loss_list, color='red')
   plt.title("Discriminative training loss")
   plt.xlabel('iteration')
-  plt.savefig('/home/kent1201/Documents/environments/TimeGAN_Master_thesis/Loss_curve/dis_loss_curve.png', bbox_inches='tight')
+  plt.savefig('/home/kent1201/Documents/Master-thesis/Loss_curve/dis_loss_curve.png', bbox_inches='tight')
   plt.close()        
     
   ## Test the performance on the testing set    
@@ -260,7 +260,7 @@ def predictive_score_metrics (ori_data, generated_data):
   batch_size = 128
     
   # Input place holders
-  X = tf.compat.v1.placeholder(tf.float32, [None, max_seq_len-1, dim-1], name = "myinput_x")
+  X = tf.compat.v1.placeholder(tf.float32, [None, max_seq_len-1, dim-2], name = "myinput_x")
   T = tf.compat.v1.placeholder(tf.int32, [None], name = "myinput_t")    
   Y = tf.compat.v1.placeholder(tf.float32, [None, max_seq_len-1, 1], name = "myinput_y")
     
@@ -303,9 +303,9 @@ def predictive_score_metrics (ori_data, generated_data):
     idx = np.random.permutation(len(generated_data))
     train_idx = idx[:batch_size]     
             
-    X_mb = list(generated_data[i][:-1,:(dim-1)] for i in train_idx)
+    X_mb = list(generated_data[i][:-1,:(dim-2)] for i in train_idx)
     T_mb = list(generated_time[i]-1 for i in train_idx)
-    Y_mb = list(np.reshape(generated_data[i][1:,(dim-1)],[len(generated_data[i][1:,(dim-1)]),1]) for i in train_idx)        
+    Y_mb = list(np.reshape(generated_data[i][1:,(dim-2)],[len(generated_data[i][1:,(dim-2)]),1]) for i in train_idx)        
           
     # Train predictor
     _, step_p_loss = sess.run([p_solver, p_loss], feed_dict={X: X_mb, T: T_mb, Y: Y_mb})        
@@ -314,9 +314,9 @@ def predictive_score_metrics (ori_data, generated_data):
   idx = np.random.permutation(len(ori_data))
   train_idx = idx[:no]
     
-  X_mb = list(ori_data[i][:-1,:(dim-1)] for i in train_idx)
+  X_mb = list(ori_data[i][:-1,:(dim-2)] for i in train_idx)
   T_mb = list(ori_time[i]-1 for i in train_idx)
-  Y_mb = list(np.reshape(ori_data[i][1:,(dim-1)], [len(ori_data[i][1:,(dim-1)]),1]) for i in train_idx)
+  Y_mb = list(np.reshape(ori_data[i][1:,(dim-2)], [len(ori_data[i][1:,(dim-2)]),1]) for i in train_idx)
     
   # Prediction
   pred_Y_curr = sess.run(y_pred, feed_dict={X: X_mb, T: T_mb})
