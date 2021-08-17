@@ -10,7 +10,7 @@
 請前往我的 [TimeGAN Pytorch 版本](https://github.com/kent1201/TimeGAN-Pytorch)觀看。
 
 ## Project architecture
-`\Loss` 內含不同 train stages (encoder, decoder, generator, ...) 會用到的 loss。  
+`\Loss` 內含不同 train stages (encoder, decoder, generator, ...) 會用到的不同 loss。loss 方面包含 supervised loss 與 unsupervised loss 結合以進行訓練。其中 supervised loss 分為 MSE loss 與 Soft-DTW loss。Unsupervised loss 則分為 Binary cross entropy with logits，WGAN-GP，Hinge loss。共可搭配出六種不同的方案。
 
 `\Network` 包含 `encoder.py`, `decoder.p`y, `generator.py`, `supervisor.py`, `discriminator.py` 五個不同部件，每個部件可用 rnn. lstm, gru, tcn 所替換。simple_discriminator.py, simple_predictor.py 則是用來評估 real data 與 syntheitc data 之間的差異所用的架構。 
 
