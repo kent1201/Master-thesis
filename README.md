@@ -49,9 +49,10 @@ Time-series data 一般是指具有時間維度的數據，如天氣記錄、支
 
 ## Requirements
 
-* conda 4.8.2
+* conda 4.9.2
+* recommend
 ```bash
-conda install --yes --file requirements.txt
+conda create --name <env> --file <this file>
 ``` 
 or
 ```bash
@@ -61,16 +62,10 @@ pip install -r requirements.txt
 ### How to use
 
 >Set the Configure.ini
->conda create your environment 
->
->conda activate your environment 
->
->pip install the requirments 
 ```python
 python train.py
 python Time_generate_data.py
 python Time_data_visualization.py
 python Timetest.py
 ```
-* **Notice** 無提供 Dataset，請自行根據使用的 dataset 自行調整程式內容。
 
