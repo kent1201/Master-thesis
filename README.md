@@ -48,6 +48,7 @@ Time-series data 一般是指具有時間維度的數據，如天氣記錄、支
 `utils.py` 包含 train test data loader, random generator 等功能。 
 
 ## Results
+其中紅點為 real data 在二維空間中的分布，藍點為 synthetic data 在二維空間中的分布。若兩者都在同一區間內且相似度高，說明 real data 與 snythetic data 擁有高相似度。
 ![Our visualization results](https://github.com/kent1201/Master-thesis/blob/master/Src/Our%20visualization%20result.png)
 
 
@@ -65,11 +66,22 @@ pip install -r requirements.txt
 
 ### How to use
 
->Set the Configure.ini
+* Set the Configure.ini
+
+* 訓練模型
 ```python
 python train.py
+```
+* 用訓練好的模型產生資料
+```python
 python Time_generate_data.py
+```
+* 將資料進行二維可視化
+```python
 python Time_data_visualization.py
+```
+* 對產生的資料進行 classification 與 prediction
+```python
 python Timetest.py
 ```
 
