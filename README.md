@@ -43,6 +43,8 @@ Time-series data 一般是指具有時間維度的數據，如天氣記錄、支
 * `Stage 3` 聯合訓練。  
 訓練好模型將以日期作為劃分，儲存模型。 
 
+`train_c_rnn_gan.py` 訓練 c_rnn_gan 模型做為比較對象。
+
 `utils.py` 包含 train test data loader, random generator 等功能。 
 
 ## Requirements
