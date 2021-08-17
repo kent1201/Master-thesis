@@ -6,3 +6,6 @@
 ## Introduction
 這是一篇 TimeGAN 的不同 loss functions 的搭配實驗，目的在於找出最合適的 loss function 來減輕 mode collapse 的影響。
 
+## TimeGAN architecture
+
+
