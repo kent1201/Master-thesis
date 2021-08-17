@@ -401,18 +401,18 @@ if __name__ == '__main__':
 
         ## TRTR
         #============================================================================================================================#
-        # predictor = Simple_Predictor(
-        #     time_stamp=max_seq_len-1,
-        #     input_size=n_features-1,
-        #     hidden_dim=(n_features // 2),
-        #     output_dim=1,
-        #     num_layers=5,
-        #     padding_value=PADDING_VALUE,
-        #     max_seq_len=max_seq_len-1
-        # )
+        predictor = Simple_Predictor(
+            time_stamp=max_seq_len-1,
+            input_size=n_features-1,
+            hidden_dim=(n_features // 2),
+            output_dim=1,
+            num_layers=5,
+            padding_value=PADDING_VALUE,
+            max_seq_len=max_seq_len-1
+        )
 
-        # TRTR_predictive_score = Predictive(
-        #     predictor, real_train_data_loader, real_test_data_loader, mode='TRTR')
+        TRTR_predictive_score = Predictive(
+            predictor, real_train_data_loader, real_test_data_loader, mode='TRTR')
 
         ## TRTS
         #============================================================================================================================#
@@ -429,8 +429,8 @@ if __name__ == '__main__':
         TRTS_predictive_score = Predictive(
             predictor, real_data_loader, synthetic_test_data_loader, mode='TRTS')
 
-        # print("iteration: {}, discriminative_score: {:.6f}, TRTS_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}, TRTR_score: {:.6f}".format(iteration, discriminative_score, TRTS_predictive_score, TSTR_predictive_score, TMTR_predictive_score, TRTR_predictive_score))
-        print("iteration: {}, discriminative_score: {:.6f}, TRTS_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}".format(iteration, discriminative_score, TRTS_predictive_score, TSTR_predictive_score, TMTR_predictive_score))
+        print("iteration: {}, discriminative_score: {:.6f}, TRTS_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}, TRTR_score: {:.6f}".format(iteration, discriminative_score, TRTS_predictive_score, TSTR_predictive_score, TMTR_predictive_score, TRTR_predictive_score))
+        # print("iteration: {}, discriminative_score: {:.6f}, TRTS_score: {:.6f}, TSTR_score: {:.6f}, TMTR_score: {:.6f}".format(iteration, discriminative_score, TRTS_predictive_score, TSTR_predictive_score, TMTR_predictive_score))
         # print("iteration: {}, TSTR_score: {:.6f}, TMTR_score: {:.6f}".format(iteration, TSTR_predictive_score, TMTR_predictive_score))
         # print("iteration: {}, TSTR_score: {:.6f}, TMTR_score: {:.6f}, TRTR_score: {:.6f}, TRTS_score: {:.6f}".format(iteration, TSTR_predictive_score, TMTR_predictive_score, TRTR_predictive_score, TRTS_predictive_score))
         # print("iteration: {}, discriminative_score: {:.6f}".format(iteration, discriminative_score))
@@ -442,18 +442,18 @@ if __name__ == '__main__':
         discriminative_score_list.append(discriminative_score)
         TSTR_score_list.append(TSTR_predictive_score)
         TMTR_score_list.append(TMTR_predictive_score)
-        # TRTR_score_list.append(TRTR_predictive_score)
+        TRTR_score_list.append(TRTR_predictive_score)
         TRTS_score_list.append(TRTS_predictive_score)
 
     mean_discriminative_score = np.mean(discriminative_score_list)
     mean_TSTR_score = np.mean(TSTR_score_list)
     mean_TMTR_score = np.mean(TMTR_score_list)
-    # mean_TRTR_score = np.mean(TRTR_score_list)
+    mean_TRTR_score = np.mean(TRTR_score_list)
     mean_TRTS_score = np.mean(TRTS_score_list)
 
     print("Discriminative score: {:.4f}".format(mean_discriminative_score))
     print("TRTS predictive score: {:.4f}".format(mean_TRTS_score))
     print("TSTR predictive score: {:.4f}".format(mean_TSTR_score))
     print("TMTR predictive score: {:.4f}".format(mean_TMTR_score))
-    # print("TRTR predictive score: {:.4f}".format(mean_TRTR_score))
+    print("TRTR predictive score: {:.4f}".format(mean_TRTR_score))
     

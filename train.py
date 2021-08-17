@@ -16,16 +16,13 @@ from Network.recovery import Recovery
 from Network.supervisor import Supervisor
 from Network.generator import Generator
 from Network.discriminator import Discriminator
-# from dataset import WaferDataset
 from Timedataset import TimeSeriesDataset
-from Loss.embedder_loss import EmbedderLoss
 from Loss.supervised_loss import SupervisedLoss
 from Loss.joint_Gloss import JointGloss
-from Loss.joint_Eloss import JointEloss
 from Loss.joint_Dloss import JointDloss
 from utils import random_generator, _gradient_penalty, add_noise
 
-
+# 取得設定檔
 config = configparser.ConfigParser()
 config.read('Configure.ini', encoding="utf-8")
 
@@ -35,6 +32,7 @@ config.read('Configure.ini', encoding="utf-8")
 # 防止 specified launch error: 強行統一至同一GPU
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
+# 取得設定檔參數
 # gpu-used
 CUDA_DEVICES = torch.device("cuda:"+config.get('default',
                                                'cuda_device_number') if torch.cuda.is_available() else "cpu")
@@ -42,8 +40,6 @@ dataset_dir = config.get('train', 'Dataset_path')
 stage1_epochs = config.getint('train', 'stage1_epochs')
 stage2_epochs = config.getint('train', 'stage2_epochs')
 stage3_epochs = config.getint('train', 'stage3_epochs')
-stage4_epochs = config.getint('train', 'stage4_epochs')
-stage5_epochs = config.getint('train', 'stage5_epochs')
 batch_size = config.getint('train', 'batch_size')
 seq_len = config.getint('train', 'seq_len')
 n_features = config.getint('train', 'n_features')
@@ -52,8 +48,6 @@ num_layers = config.getint('train', 'num_layers')
 learning_rate1 = config.getfloat('train', 'learning_rate1')
 learning_rate2 = config.getfloat('train', 'learning_rate2')
 learning_rate3 = config.getfloat('train', 'learning_rate3')
-learning_rate4 = config.getfloat('train', 'learning_rate4')
-learning_rate5 = config.getfloat('train', 'learning_rate5')
 dis_func = config.get('train', 'dis_func')
 uloss_func = config.get('train', 'uloss_func')
 embedder_name = config.get('default', 'embedder_name')
@@ -74,13 +68,11 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 
-# 1. Embedding network training
-
-
+# 1. Embedding network training: 預先訓練 data autoencoder
 def train_stage1(data_loader, embedder, recovery):
 
     # Loss
-    criterion = EmbedderLoss(dis_func="MSE")
+    criterion = SupervisedLoss(dis_func="MSE")
 
     # model
     embedder.train()
@@ -93,6 +85,7 @@ def train_stage1(data_loader, embedder, recovery):
         lr=learning_rate1
     )
 
+    # 設定 learning rate 隨 epoch 衰減率
     idx = np.round(np.linspace(0, stage1_epochs, 10)).astype(int)
     idx = idx[1:-1]
     # idx = np.insert(idx, 0, 15)
@@ -100,7 +93,7 @@ def train_stage1(data_loader, embedder, recovery):
 
     print('Start Embedding Network Training')
 
-    # for epoch in range(num_epochs):
+    # trange: 以進度條顯示訓練進度
     logger = trange(stage1_epochs, desc=f"Epoch: 0, Loss: 0")
     for epoch in logger:
 
@@ -124,13 +117,10 @@ def train_stage1(data_loader, embedder, recovery):
         logger.set_description(f"Epoch: {epoch}, Loss: {training_loss:.4f}")
         scheduler.step()
 
-        # if epoch % (np.round(num_epochs / 5))  == 0:
-        #   print('epoch: '+ str(epoch) + '/' + str(num_epochs) + ', e_loss: ' + str(np.round(training_loss,4)))
-
     print('Finish Embedding Network Training')
 
-# 3. Training with supervised loss only
-def train_stage3(data_loader, embedder,  supervisor, z_recovery):
+# 2. Training with supervised loss only
+def train_stage2(data_loader, embedder,  supervisor, z_recovery):
 
     # Loss
     criterion = SupervisedLoss(dis_func=dis_func)
@@ -140,20 +130,20 @@ def train_stage3(data_loader, embedder,  supervisor, z_recovery):
     supervisor.train()
     z_recovery.train()
 
-    # # Optimizer
+    # Optimizer
     optimizer = torch.optim.Adam(
         [{'params': supervisor.parameters()},
          {'params': z_recovery.parameters()}],
-        lr=learning_rate3
+        lr=learning_rate2
     )
-
-    idx = np.round(np.linspace(0, stage3_epochs-1, 5)).astype(int)
+    # 設定 learning rate 隨 epoch 衰減率
+    idx = np.round(np.linspace(0, stage2_epochs-1, 5)).astype(int)
     idx = idx[1:-1]
     scheduler = MultiStepLR(optimizer, milestones=idx, gamma=0.8)
 
     print('Start Training with Supervised Loss Only')
-
-    logger = trange(stage3_epochs, desc=f"Epoch: 0, Loss: 0")
+    # trange: 以進度條顯示訓練進度
+    logger = trange(stage2_epochs, desc=f"Epoch: 0, Loss: 0")
     for epoch in logger:
 
         training_loss = 0.0
@@ -170,7 +160,7 @@ def train_stage3(data_loader, embedder,  supervisor, z_recovery):
             H_hat_supervise = supervisor(H, T)
 
             # Teacher forcing next output
-            loss = criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
+            loss, _ = criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
             loss.backward()
             optimizer.step()
 
@@ -182,16 +172,23 @@ def train_stage3(data_loader, embedder,  supervisor, z_recovery):
     print('Finish Training with Supervised Loss Only')
 
 
-# 5. Joint Training
-def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, supervisor, discriminator, z_discriminator):
+# 3. Joint Training
+def train_stage3(data_loader, embedder, recovery, z_embedder, z_recovery, supervisor, discriminator, z_discriminator):
 
     print('Start Joint Training')
 
     # loss
-    E_loss_criterion = EmbedderLoss(dis_func="MSE")
-    GZ_loss_crition = nn.MSELoss()
+    # data autoencoder loss
+    E_loss_criterion = SupervisedLoss(dis_func=dis_func)
+    # noise autoencoder loss
+    GZ_loss_crition = SupervisedLoss(dis_func=dis_func)
+    # Supervised loss
     GS_loss_criterion = SupervisedLoss(dis_func=dis_func)
-
+    # data discriminator loss
+    DD_loss_criterion = JointDloss(uloss_func=uloss_func)
+    # data generator loss
+    DG_loss_criterion = JointGloss(uloss_func=uloss_func)
+    
     # model
     embedder.train()
     recovery.train()
@@ -205,37 +202,38 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
     optimizerE =  torch.optim.Adam(
         [{'params': embedder.parameters()},
          {'params': recovery.parameters()}],
-        lr=learning_rate5
+        lr=learning_rate3
     )
     optimizerZE = torch.optim.Adam(
         [{'params': z_embedder.parameters()},
          {'params': z_recovery.parameters()}],
-        lr=learning_rate5
+        lr=learning_rate3
     )
     optimizerZG = torch.optim.Adam(
         params=z_embedder.parameters(),
-        lr=learning_rate5
+        lr=learning_rate3
     )
     optimizerZD = torch.optim.Adam(
         params= z_discriminator.parameters(),
-        lr=(learning_rate5*3.0)
+        lr=(learning_rate3*3.0)
     )
     optimizerGS = torch.optim.Adam(
         [{'params': supervisor.parameters()},
          {'params': z_recovery.parameters()}],
-        lr=learning_rate5
+        lr=learning_rate3
     )
     optimizerG = torch.optim.Adam(
         [{'params': supervisor.parameters()},
          {'params': z_recovery.parameters()},
          {'params': recovery.parameters()}],
-        lr=learning_rate5
+        lr=learning_rate3
     )
     optimizerD = torch.optim.Adam(
-        params=discriminator.parameters(), lr=(learning_rate5*3.0))
+        params=discriminator.parameters(), lr=(learning_rate3*3.0))
 
+    # 設定 learning rate 隨 epoch 衰減率
     # learning rate scheduler
-    idx = np.round(np.linspace(0, stage5_epochs-1, 10)).astype(int)
+    idx = np.round(np.linspace(0, stage3_epochs-1, 10)).astype(int)
     idx = idx[1:-1]
     schedulerE = MultiStepLR(optimizerE, milestones=idx, gamma=0.8)
     schedulerZE = MultiStepLR(optimizerZE, milestones=idx, gamma=0.8)
@@ -260,27 +258,28 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
     training_loss_G = []
     training_loss_GZ = []
     training_loss_DZ = []
-
+    
+    # trange: 以進度條顯示訓練進度
     if uloss_func == 'wgan':
         logger = trange(
-            stage5_epochs,  desc=f"Epoch: 0, Noise wasserstein dis: 0, Data wasserstein dis: 0")
+            stage3_epochs,  desc=f"Epoch: 0, Noise wasserstein dis: 0, Data wasserstein dis: 0")
     else:
         logger = trange(
-            stage5_epochs,  desc=f"Epoch: 0, Noise G: 0, Noise D: 0, Data G: 0, Data D: 0")
+            stage3_epochs,  desc=f"Epoch: 0, Noise G: 0, Noise D: 0, Data G: 0, Data D: 0")
     
     for epoch in logger:
 
         for X_mb, T_mb in data_loader:
-
+            
+            # Get data x
             X = X_mb.to(CUDA_DEVICES)
             T = T_mb.to(CUDA_DEVICES)
+            # Generate noise z
             z_batch_size, z_seq_len, z_dim = X.shape
             Z = random_generator(z_batch_size, z_seq_len, z_dim, T_mb)
             Z = Z.to(CUDA_DEVICES)
-            Artificial_Noise = random_generator(z_batch_size, z_seq_len, z_dim, T_mb)
-            Artificial_Noise = Artificial_Noise.to(CUDA_DEVICES)
 
-            ## Train auto encoder
+            ## Train data autoencoder
             optimizerE.zero_grad()
 
             with torch.cuda.amp.autocast():
@@ -297,18 +296,18 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 p.requires_grad = False
 
             optimizerZE.zero_grad()
-
+            ## Train noise autoencoder
             with torch.cuda.amp.autocast():
                 H = embedder(X, T)
                 Z_hat = z_embedder(H, T)
                 H_hat = z_recovery(Z_hat, T)
-                ze_loss = GZ_loss_crition(H_hat, H)
+                _, ze_loss = GZ_loss_crition(H_hat, H)
 
             scalerZE.scale(ze_loss).backward() # ze_loss.backward()
             scalerZE.step(optimizerZE) # optimizerZE.step()
             scalerZE.update()
 
-            ## Train AAE discriminator
+            ## Train noise discriminator
             optimizerZD.zero_grad()
             for p in z_discriminator.parameters():  # reset requires_grad
                 p.requires_grad = True
@@ -323,7 +322,7 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                     noise_wasserstein_dis = real_loss - fake_loss
                     with torch.backends.cudnn.flags(enabled=False):
                         lossD_gp = _gradient_penalty(CUDA_DEVICES, z_discriminator, Z, Z_hat, T)
-                    d_loss = fake_loss - real_loss + 2 *  lossD_gp
+                    d_loss = fake_loss - real_loss + 2 * lossD_gp
                 elif uloss_func == 'hinge':
                     # label smoothing : 1.0 -> 0.9 (to avoid discriminator become overconfident)
                     d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
@@ -338,7 +337,7 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 scalerZD.step(optimizerZD) # optimizerZD.step()
                 scalerZD.update()
 
-            # Train AAE generator
+            ## Train noise generator
             optimizerZG.zero_grad()
             for p in z_discriminator.parameters():  # reset requires_grad
                 p.requires_grad = False
@@ -361,40 +360,31 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 H = embedder(X, T)
                 H_hat_supervise = supervisor(H, T)
                 # Teacher forcing next output
-                GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
-                GS_loss = GS_loss * 10.0
-
+                _, GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
+                
+            # 可選擇現在 updata or 在下一階段 update
             scalerGS.scale(GS_loss).backward() # GS_loss.backward()
             scalerGS.step(optimizerGS) # optimizerGS.step()
             scalerGS.update()
 
-            ## Train generator
+            ## Train data generator
             optimizerG.zero_grad()
             for p in discriminator.parameters():  # reset requires_grad
                 p.requires_grad = False
             with torch.cuda.amp.autocast():
                 H = embedder(X, T)
                 H_hat_supervise = supervisor(H, T)
-                GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
-                GS_loss = GS_loss * 10.0
+                _, GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
                 E_hat = z_recovery(Z, T)
                 H_hat = supervisor(E_hat, T)
                 # Synthetic data generated
                 X_hat = recovery(H_hat, T)
                 X_hat_e = recovery(E_hat, T)
+               
                 # Adversarial loss
-
-                # X_hat = add_noise(X_hat, Artificial_Noise, epoch)
-                # X_hat_e = add_noise(X_hat_e, Artificial_Noise, epoch)
-
                 Y_fake = discriminator(X_hat, T)
                 Y_fake_e = discriminator(X_hat_e, T)
-                if uloss_func == 'wgan' or uloss_func == 'hinge':
-                    lossG = torch.add(-torch.mean(Y_fake), torch.mul(0.1, -torch.mean(Y_fake_e)))
-                else: 
-                    loss_g = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.ones_like(Y_fake)) 
-                    loss_g_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e)) 
-                    lossG = loss_g + 0.1 * loss_g_e
+                lossG = DG_loss_criterion(Y_fake, Y_fake_e)
                 # Add supervised loss
                 lossG = lossG + GS_loss
             
@@ -402,8 +392,7 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
             scalerG.step(optimizerG) # optimizerG.step()
             scalerG.update()
 
-            ## Discriminator training
-
+            ## Data Discriminator training
             for p in discriminator.parameters():  # reset requires_grad
                 p.requires_grad = True  # they are set to False below in netG update
             optimizerD.zero_grad()
@@ -415,39 +404,21 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 H_hat = supervisor(E_hat, T)
                 X_hat = recovery(H_hat, T)
                 X_hat_e = recovery(E_hat, T)
-
-                # X_add_noise = add_noise(X.detach(), Artificial_Noise, epoch)
-                # X_hat = add_noise(X_hat, Artificial_Noise, epoch)
-                # X_hat_e = add_noise(X_hat_e, Artificial_Noise, epoch)
-                # X_add_noise
                 Y_real = discriminator(X, T)
                 Y_fake = discriminator(X_hat, T)    # Output of supervisor
                 Y_fake_e = discriminator(X_hat_e, T)   # Output of generator
+
                 lossD = 0.0
-                GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
-                GS_loss = GS_loss * 10.0
+                _, GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
+                lossD = DD_loss_criterion(Y_real, Y_fake, Y_fake_e)
                 if uloss_func == 'wgan':
-                    real_loss = Y_real.mean()
-                    fake_loss = Y_fake.mean()
-                    fake_loss_e = Y_fake_e.mean()
-                    data_wasserstein_dis = torch.mean(Y_real - Y_fake)
+                    data_wasserstein_dis = Y_real.mean() - 0.5 * (Y_fake.mean() + Y_fake_e.mean())
                     with torch.backends.cudnn.flags(enabled=False):
                         lossD_gp = _gradient_penalty(CUDA_DEVICES, discriminator, X, X_hat, T)
-                    lossD = 0.5 * (fake_loss + fake_loss_e) - real_loss + 10 * lossD_gp
-                elif uloss_func == 'hinge':
-                    # label smoothing : 1.0 -> 0.9 (to avoid discriminator become overconfident)
-                    d_loss_real = torch.nn.ReLU()(1.0 - Y_real).mean()
-                    d_loss_fake = torch.nn.ReLU()(1.0 + Y_fake).mean()
-                    d_loss_fake_e = torch.nn.ReLU()(1.0 + Y_fake_e).mean()
-                    lossD = d_loss_real + d_loss_fake + 0.1 * d_loss_fake_e
-                else:
-                    d_loss_real = torch.nn.functional.binary_cross_entropy_with_logits(Y_real, torch.ones_like(Y_real))
-                    d_loss_fake = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.zeros_like(Y_fake))
-                    d_loss_fake_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.zeros_like(Y_fake_e))
-                    lossD = d_loss_real + d_loss_fake + 0.1 * d_loss_fake_e
+                    lossD = lossD + 10 * lossD_gp
                 # Add supervised loss
                 lossD = lossD + GS_loss
-            # Train discriminator (only when the discriminator does not work well)
+            # only when the generator does not work well
             if lossD > 0.15:
                 scalerD.scale(lossD).backward() # lossD.backward()
                 scalerD.step(optimizerD) # optimizerD.step()
@@ -486,7 +457,7 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
             torch.save(embedder.state_dict(), f'{output_dir+str(epoch)+"_embedder.pth"}')
             torch.save(z_embedder.state_dict(), f'{output_dir+str(epoch)+"_Zembedder.pth"}')
 
-
+    # 畫圖驗證 loss 
     if uloss_func == 'wgan':
         Noise_wasserstein_dis
         plt.plot(Noise_wasserstein_dis, color='blue', label="Noise W dis")
@@ -512,14 +483,6 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
 
 if __name__ == '__main__':
 
-    # # save model path
-    # today = date.today()
-    # save_time = today.strftime("%d_%m_%Y")
-    # output_dir = config.get('train', 'model_path') + '/' + save_time + \
-    #     '/' + config.get('train', 'classification_dir') + '/'
-    # if not os.path.exists(output_dir):
-    #     os.makedirs(output_dir)
-
     # Parameters
     print("CUDA DEVICE: {}".format(CUDA_DEVICES))
     print("[train] module: {}".format(module_name))
@@ -529,7 +492,7 @@ if __name__ == '__main__':
     print("[train] n_features: {}".format(n_features))
     print("[train] hidden size: {}".format(hidden_size))
     print("[train] num_layers: {}".format(num_layers))
-    print("[train] num_epochs: {}".format(stage5_epochs))
+    print("[train] num_epochs: {}".format(stage3_epochs))
     print("[train] batch_size: {}".format(batch_size))
     print("[train] distance function: {}".format(dis_func))
     print("[train] adversarial loss function: {}".format(uloss_func))
@@ -651,10 +614,8 @@ if __name__ == '__main__':
 
 
     train_stage1(Data_loader, embedder, recovery)
-    # train_stage2(Data_loader, embedder, z_embedder, z_recovery, z_discriminator)
-    train_stage3(Data_loader, embedder, supervisor, z_recovery)
-    # train_stage4(Data_loader, z_recovery, supervisor, recovery, discriminator)
-    train_stage5(Data_loader, embedder, recovery, z_embedder, z_recovery, supervisor, discriminator, z_discriminator)
+    train_stage2(Data_loader, embedder, supervisor, z_recovery)
+    train_stage3(Data_loader, embedder, recovery, z_embedder, z_recovery, supervisor, discriminator, z_discriminator)
 
     torch.save(recovery.state_dict(), f'{output_dir+recovery_name}')
     torch.save(z_recovery.state_dict(), f'{output_dir+generator_name}')

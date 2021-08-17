@@ -6,52 +6,28 @@ from Loss.soft_dtw import SoftDTW
 
 class JointGloss(nn.Module):
 
-    def __init__(self, dis_func, mode):
+    def __init__(self, uloss_func):
         super(JointGloss, self).__init__()
-        self.dis_func = dis_func
+        self.uloss_func = uloss_func
         # Adversarial loss
         # equivalent as sigmoid_cross_entropy_with_logits
-        self.G_loss_U = nn.BCEWithLogitsLoss()
         # self.G_loss_U = nn.BCELoss()
         self.gamma = 1
-        self.mode = mode
-        # Supervised loss
-        if self.dis_func == "MSE":
-            self.G_loss_S = nn.MSELoss()
-        elif self.dis_func == "Soft_DTW":
-            self.G_loss_S = SoftDTW(gamma=0.001, normalize=True)
-        # Two Momments (計算合成 data 與原始 data 的 loss)
 
-    def forward(self, Y_fake, Y_fake_e, H, H_hat_supervise, X, X_hat):
+    def forward(self, Y_fake, Y_fake_e):
         """
           Y_fake, Y_fake_e: [batch_size, seq_len, 1]
           H, H_hat_supervise: [batch_size, seq_len-1, n_features(hidden)]
           X, X_hat: [batch_size, seq_len, n_features]
         """
-        loss_U, loss_U_e = 0.0, 0.0
+        if self.uloss_func == 'wgan' or self.uloss_func == 'hinge':
+            lossG = torch.add(-torch.mean(Y_fake), torch.mul(0.1, -torch.mean(Y_fake_e)))
+        else: 
+            loss_g = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.ones_like(Y_fake)) 
+            loss_g_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e)) 
+            lossG = loss_g + 0.1 * loss_g_e
 
-        loss_V1 = torch.mean(torch.abs(torch.sub(torch.sqrt(torch.add(torch.var(X_hat, dim=0, keepdim=True,
-                                                                                unbiased=False), 1e-7)), torch.sqrt(torch.add(torch.var(X, dim=0, keepdim=True, unbiased=True), 1e-7)))))
-        loss_V2 = torch.mean(torch.abs(torch.sub(torch.mean(
-            X_hat, dim=0, keepdim=True), torch.mean(X, dim=0, keepdim=True))))
-        loss_V = loss_V1.add(loss_V2)
-
-        loss_S = self.G_loss_S(H_hat_supervise, H).mean()
-
-        if self.mode == "default":
-            loss_U = self.G_loss_U(Y_fake, torch.ones_like(Y_fake))
-            loss_U_e = self.G_loss_U(Y_fake_e, torch.ones_like(Y_fake_e))
-        elif self.mode == "wgan" or self.mode == "hinge":
-            loss_U = -(Y_fake.mean())
-            loss_U_e = -(Y_fake_e.mean())
-
-        loss_U = torch.add(loss_U, torch.mul(self.gamma, loss_U_e))
-        loss_S = torch.mul(torch.sqrt(loss_S), 100)
-        loss_V = torch.mul(loss_V, 100)
-        loss = loss_U.add(loss_S).add(loss_V)
-        loss = torch.add(loss, 1e-7)
-
-        return loss, loss_U, loss_S, loss_V
+        return lossG
 
 
 if __name__ == '__main__':

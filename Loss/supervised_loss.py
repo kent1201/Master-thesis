@@ -16,11 +16,13 @@ class SupervisedLoss(nn.Module):
 
         loss = 0.0
         if self.dis_func == "MSE":
-            loss = self.MSELoss(outputs, targets)
+            E_loss_T0 = self.MSELoss(outputs, targets)
         elif self.dis_func == "Soft_DTW":
-            loss = torch.add(self.sdtw_cuda(outputs, targets).mean(), 1e-5)
+            E_loss_T0 = self.sdtw_cuda(outputs, targets).mean()
 
-        return loss
+        E_loss0 = torch.mul(10.0, torch.sqrt(torch.add(E_loss_T0, 1e-10)))
+
+        return E_loss_T0, E_loss0
 
 
 if __name__ == '__main__':
