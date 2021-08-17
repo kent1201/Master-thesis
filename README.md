@@ -48,3 +48,29 @@
 
 `hyper_optimize.py` 開發測試中的功能，用於參數最佳化。
 
+## Requirements
+
+* conda 4.8.2
+```bash
+conda install --yes --file requirements.txt
+``` 
+or
+```bash
+pip install -r requirements.txt
+```
+
+### How to use
+
+>Set the Configure.ini
+>conda create your environment 
+>
+>conda activate your environment 
+>
+>pip install the requirments 
+```python
+python train.py
+python Time_generate_data.py
+python Time_data_visualization.py
+python Timetest.py
+```
+* **Notice** 無提供 Dataset，請自行根據使用的 dataset 自行調整程式內容。
