@@ -2,7 +2,7 @@
 **This is a PyTorch implementation of the TimeGAN in "[Time-series Generative Adversarial Networks](https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html)" (Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar, NIPS, 2019). We also add different loss functions to try the best performance of the frame work.**  
 
 **My master-thesis is at the master branch.**   
-**本篇論文 code 在 master branch。**
+**我的論文[Multi-domain generative adversarial network learning for time-series data generation](https://github.com/kent1201/Master-thesis/blob/master/Src/Multi-domain%20generative%20adversarial%20network%20learning%20for%20time-series%20data%20generation%20v3.pdf) code 在 master branch。**
 
 ## Introduction
 這是一篇 TimeGAN 的不同 loss functions 的搭配實驗，目的在於找出最合適的 loss function 來減輕 mode collapse 的影響。
