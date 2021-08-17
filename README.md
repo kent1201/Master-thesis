@@ -1,12 +1,12 @@
 # Multi-domain generative adversarial network learning for time-series data generation
 
-這邊是我的論文的程式碼。詳細內容請翻閱我的論文 [Multi-domain generative adversarial network learning for time-series data generation](https://github.com/kent1201/Master-thesis/blob/master/Src/Multi-domain%20generative%20adversarial%20network%20learning%20for%20time-series%20data%20generation%20v3.pdf)
+這邊是我的論文的程式碼。詳細內容請翻閱我的論文 [Multi-domain generative adversarial network learning for time-series data generation](https://github.com/kent1201/Master-thesis/blob/master/Src/Multi-domain%20generative%20adversarial%20network%20learning%20for%20time-series%20data%20generation%20v3.pdf).
 
 ## Introduction
 Time-series data 一般是指具有時間維度的數據，如天氣記錄、支出記錄甚至股票趨勢。這些不同類型的數據遍布我們的生活，深刻影響著我們的行為。Time-series data 的預測也是深度學習領域的一項重要任務。但是 time-series data 需要隨著時間的推移進行記錄，這意味著很難在短時間內收集到足夠的資料。數據的缺乏也是深度學習領域的問題之一。因此，我們設計了一個基於 [Time-series Generative Adversarial Networks](https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html)" (Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar, NIPS, 2019) 的 framework，該方法約束了多種領域以保證模型的穩定性，減少模式崩潰的影響並提高生成數據的質量。本篇方法以 TimeGAN 的概念為基礎，除了專注在高維空間的訓練，更近一步的針對 data 的 domain 與 noise 的 domain 進行訓練，強化了 data 在不同 domain 之間的聯繫，使模型能更完整的學習 data 的特徵與時間動態。
 
 ## System framework
-![System framework]()
+![System framework](https://github.com/kent1201/Master-thesis/blob/master/Src/System%20Framework%20new.png)
 
 
 ## Project architecture
