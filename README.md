@@ -1,6 +1,6 @@
 # Multi-domain generative adversarial network learning for time-series data generation
 
-Time-series data 一般是指具有時間維度的數據，如天氣記錄、支出記錄甚至股票趨勢。這些不同類型的數據遍布我們的生活，深刻影響著我們的行為。Time-series data 的預測也是深度學習領域的一項重要任務。但是 time-series data 需要隨著時間的推移進行記錄，這意味著很難在短時間內收集到足夠的資料。數據的缺乏也是深度學習領域的問題之一。因此，我們設計了一個基於 {\it Time-Series Generative Adversarial Network}~\cite{R1} 的框架，該方法約束了多種領域以保證模型的穩定性，減少模式崩潰的影響並提高生成數據的質量。
+Time-series data 一般是指具有時間維度的數據，如天氣記錄、支出記錄甚至股票趨勢。這些不同類型的數據遍布我們的生活，深刻影響著我們的行為。Time-series data 的預測也是深度學習領域的一項重要任務。但是 time-series data 需要隨著時間的推移進行記錄，這意味著很難在短時間內收集到足夠的資料。數據的缺乏也是深度學習領域的問題之一。因此，我們設計了一個基於 [Time-series Generative Adversarial Networks](https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html)" (Jinsung Yoon, Daniel Jarrett, Mihaela van der Schaar, NIPS, 2019) 的 framework，該方法約束了多種領域以保證模型的穩定性，減少模式崩潰的影響並提高生成數據的質量。
 
 
 ## Introduction
