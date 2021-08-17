@@ -127,8 +127,8 @@ def train_stage(data_loader, generator, discriminator):
     # learning rate scheduler
     idx = np.round(np.linspace(0, stage5_epochs-1, 10)).astype(int)
     idx = idx[1:-1]
-    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.8)
-    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.8)
+    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.5)
+    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.5)
 
     # automatic mixed precision (AMP) 節省空間
     scalerD = torch.cuda.amp.GradScaler()

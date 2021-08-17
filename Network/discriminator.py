@@ -28,6 +28,7 @@ class Discriminator(nn.Module):
         self.padding_value = padding_value
         self.max_seq_len = max_seq_len
         self.dropout = nn.Dropout(p=0.1)
+        self.activate = activate_function
 
         if self.module == 'gru':
             self.r_cell = nn.GRU(
@@ -61,8 +62,6 @@ class Discriminator(nn.Module):
                 d_k=(self.hidden_dim // (self.hidden_dim // 3)),
                 d_v=(self.hidden_dim // (self.hidden_dim // 3))
             )
-
-        self.activate = activate_function
 
         self.fc1 = nn.Sequential(
             nn.utils.spectral_norm(nn.Linear(self.input_size, self.hidden_dim)),

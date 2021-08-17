@@ -86,16 +86,22 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
         f, ax = plt.subplots(1)
         # alpha: 透明度
         # plt.scatter: 散佈圖
-        plt.scatter(pca_results[:, 0], pca_results[:, 1],
+        ax.scatter(pca_results[:, 0], pca_results[:, 1],
                     c=colors[:anal_sample_no], alpha=0.2, label="Original")
-        plt.scatter(pca_hat_results[:, 0], pca_hat_results[:, 1],
+        ax.scatter(pca_hat_results[:, 0], pca_hat_results[:, 1],
                     c=colors[anal_sample_no:], alpha=0.2, label="Synthetic")
 
         # ax.legend(): 顯示圖例
         ax.legend()
-        plt.title('PCA plot')
-        plt.xlabel('x-pca')
-        plt.ylabel('y_pca')
+        props = {
+            'title': 'PCA plot',
+            # 'xlim':[-3, 6],
+            # 'ylim':[-0.4, 0.4],
+            'xlabel':'x-pca',
+            'ylabel':'y-pca',
+
+        }
+        ax.set(**props)
         plt.savefig(pic_path + "/" + pic_name, bbox_inches='tight')
         # plt.show()
 
@@ -112,16 +118,21 @@ def visualization(ori_data, generated_data, analysis, pic_path, pic_name):
         # Plotting
         f, ax = plt.subplots(1)
 
-        plt.scatter(tsne_results[:anal_sample_no, 0], tsne_results[:anal_sample_no, 1],
+        ax.scatter(tsne_results[:anal_sample_no, 0], tsne_results[:anal_sample_no, 1],
                     c=colors[:anal_sample_no], alpha=0.2, label="Original")
-        plt.scatter(tsne_results[anal_sample_no:, 0], tsne_results[anal_sample_no:, 1],
+        ax.scatter(tsne_results[anal_sample_no:, 0], tsne_results[anal_sample_no:, 1],
                     c=colors[anal_sample_no:], alpha=0.2, label="Synthetic")
 
         ax.legend()
+        props = {
+            'title': 't-SNE plot',
+            # 'xlim':[-20, 20],
+            # 'ylim':[-20, 20],
+            'xlabel':'x-tsne',
+            'ylabel':'y-tsne',
 
-        plt.title('t-SNE plot')
-        plt.xlabel('x-tsne')
-        plt.ylabel('y_tsne')
+        }
+        ax.set(**props)
         plt.savefig(pic_path + "/" + pic_name, bbox_inches='tight')
         # plt.show()
 

@@ -239,11 +239,11 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
     idx = idx[1:-1]
     schedulerE = MultiStepLR(optimizerE, milestones=idx, gamma=0.8)
     schedulerZE = MultiStepLR(optimizerZE, milestones=idx, gamma=0.8)
-    schedulerZG = MultiStepLR(optimizerZG, milestones=idx, gamma=0.5)
-    schedulerZD = MultiStepLR(optimizerZD, milestones=idx, gamma=0.5)
-    schedulerGS = MultiStepLR(optimizerGS, milestones=idx, gamma=0.5)
-    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.5)
-    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.5)
+    schedulerZG = MultiStepLR(optimizerZG, milestones=idx, gamma=0.6)
+    schedulerZD = MultiStepLR(optimizerZD, milestones=idx, gamma=0.6)
+    schedulerGS = MultiStepLR(optimizerGS, milestones=idx, gamma=0.6)
+    schedulerD = MultiStepLR(optimizerD, milestones=idx, gamma=0.6)
+    schedulerG = MultiStepLR(optimizerG, milestones=idx, gamma=0.6)
 
     # automatic mixed precision (AMP) 節省空間
     scalerE = torch.cuda.amp.GradScaler()
@@ -318,12 +318,12 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 Z_hat = z_embedder(H.detach(), T)
                 d_out_fake = z_discriminator(Z_hat, T)
                 if uloss_func == 'wgan':
-                    real_loss = -torch.mean(d_out_real)
+                    real_loss = torch.mean(d_out_real)
                     fake_loss = torch.mean(d_out_fake)
-                    noise_wasserstein_dis = torch.mean(d_out_real + d_out_fake)
+                    noise_wasserstein_dis = real_loss - fake_loss
                     with torch.backends.cudnn.flags(enabled=False):
                         lossD_gp = _gradient_penalty(CUDA_DEVICES, z_discriminator, Z, Z_hat, T)
-                    d_loss = real_loss + fake_loss + 10 * lossD_gp
+                    d_loss = fake_loss - real_loss + 2 *  lossD_gp
                 elif uloss_func == 'hinge':
                     # label smoothing : 1.0 -> 0.9 (to avoid discriminator become overconfident)
                     d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
@@ -396,7 +396,7 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                     loss_g_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e)) 
                     lossG = loss_g + 0.1 * loss_g_e
                 # Add supervised loss
-                lossG = lossG
+                lossG = lossG + GS_loss
             
             scalerG.scale(lossG).backward() # lossG.backward()
             scalerG.step(optimizerG) # optimizerG.step()
@@ -427,13 +427,13 @@ def train_stage5(data_loader, embedder, recovery, z_embedder, z_recovery, superv
                 GS_loss = GS_loss_criterion(H_hat_supervise[:, :-1, :], H[:, 1:, :])
                 GS_loss = GS_loss * 10.0
                 if uloss_func == 'wgan':
-                    real_loss = -torch.mean(Y_real)
-                    fake_loss = torch.mean(Y_fake)
-                    fake_loss_e = torch.mean(Y_fake_e)
-                    data_wasserstein_dis = torch.mean(Y_real + Y_fake)
+                    real_loss = Y_real.mean()
+                    fake_loss = Y_fake.mean()
+                    fake_loss_e = Y_fake_e.mean()
+                    data_wasserstein_dis = torch.mean(Y_real - Y_fake)
                     with torch.backends.cudnn.flags(enabled=False):
                         lossD_gp = _gradient_penalty(CUDA_DEVICES, discriminator, X, X_hat, T)
-                    lossD = real_loss + fake_loss + 0.1 * fake_loss_e + 10 * lossD_gp
+                    lossD = 0.5 * (fake_loss + fake_loss_e) - real_loss + 10 * lossD_gp
                 elif uloss_func == 'hinge':
                     # label smoothing : 1.0 -> 0.9 (to avoid discriminator become overconfident)
                     d_loss_real = torch.nn.ReLU()(1.0 - Y_real).mean()

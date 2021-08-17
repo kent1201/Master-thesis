@@ -38,9 +38,9 @@ hidden_size = config.getint('GenTstVis', 'hidden_size')
 num_layers = config.getint('GenTstVis', 'num_layers')
 PADDING_VALUE = config.getfloat('default', 'padding_value')
 
-generator_name = config.get('generate_data', 'generator_name')
-supervisor_name = config.get('generate_data', 'supervisor_name')
-recovery_name = config.get('generate_data', 'recovery_name')
+generator_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'generator_name')
+supervisor_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'supervisor_name')
+recovery_name = config.get('GenTstVis', 'model_epoch') + config.get('generate_data', 'recovery_name')
 
 syntheitc_data_name = config.get('GenTstVis', 'synthetic_data_name')
 module_name = config.get('default', 'module_name')
